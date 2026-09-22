@@ -1,0 +1,2 @@
+# 复制为 ~/.codex/review.config.toml；继承用户级 config.toml 中的模型、provider 和凭据。
+model_reasoning_effort = "high"

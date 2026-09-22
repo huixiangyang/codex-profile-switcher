@@ -1,0 +1,16 @@
+src/**
+test/**
+scripts/**
+node_modules/**
+.test-build/**
+out/**
+artifacts/**
+.gitignore
+tsconfig.json
+package-lock.json
+.github/**
+.editorconfig
+.nvmrc
+examples/**
+CONTRIBUTING.md
+SECURITY.md

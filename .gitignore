@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.test-build/
+out/
+artifacts/
+.DS_Store
+*.vsix
+*.log
+.env
+.env.*
+.codex/
+.vscode-test/
+.vscode/settings.json

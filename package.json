@@ -1,0 +1,103 @@
+{
+  "name": "codex-profile-switcher",
+  "displayName": "Codex Profile Switcher",
+  "description": "在状态栏切换 Codex 配置 profile，查看当前选择并恢复默认启动。",
+  "version": "0.1.0",
+  "publisher": "huixiangyang",
+  "author": "huixiangyang",
+  "repository": { "type": "git", "url": "https://github.com/huixiangyang/codex-profile-switcher.git" },
+  "homepage": "https://github.com/huixiangyang/codex-profile-switcher#readme",
+  "bugs": { "url": "https://github.com/huixiangyang/codex-profile-switcher/issues" },
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "codex",
+    "profile",
+    "switcher"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "extensionDependencies": [
+    "openai.chatgpt"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.cjs",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexProfiles.switch",
+        "title": "切换 Profile",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.open",
+        "title": "打开当前配置文件",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.refresh",
+        "title": "刷新 Profiles",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.reset",
+        "title": "恢复 Codex 默认启动",
+        "category": "Codex Profiles"
+      }
+    ],
+    "configuration": {
+      "title": "Codex Profiles",
+      "properties": {
+        "codexProfiles.codexHome": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "restricted": true,
+          "description": "Codex 配置目录。留空时使用 CODEX_HOME 或 ~/.codex；只支持绝对路径或 ~/ 开头的路径。"
+        },
+        "codexProfiles.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "在状态栏显示 Codex profile 切换入口。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "node scripts/build-tests.mjs && node --test .test-build/*.test.cjs",
+    "vscode:prepublish": "npm run check && npm run build",
+    "prepackage": "node -e \"require('node:fs').mkdirSync('artifacts', { recursive: true })\"",
+    "package": "vsce package --no-dependencies --out artifacts/"
+  },
+  "dependencies": {
+    "smol-toml": "1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.0"
+  }
+}
