@@ -1,8 +1,8 @@
 {
   "name": "codex-profile-switcher",
   "displayName": "Codex Profile Switcher",
-  "description": "在状态栏切换 Codex 配置 profile，查看当前选择并恢复默认启动。",
-  "version": "0.1.0",
+  "description": "为每个 VS Code 窗口独立切换 Codex profile，按工作区记住选择。",
+  "version": "0.2.0",
   "publisher": "huixiangyang",
   "author": "huixiangyang",
   "repository": { "type": "git", "url": "https://github.com/huixiangyang/codex-profile-switcher.git" },
@@ -58,7 +58,12 @@
       },
       {
         "command": "codexProfiles.reset",
-        "title": "恢复 Codex 默认启动",
+        "title": "当前窗口恢复默认 Profile",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.disconnect",
+        "title": "停用切换器（所有窗口）",
         "category": "Codex Profiles"
       }
     ],
@@ -68,14 +73,14 @@
         "codexProfiles.codexHome": {
           "type": "string",
           "default": "",
-          "scope": "application",
+          "scope": "window",
           "restricted": true,
           "description": "Codex 配置目录。留空时使用 CODEX_HOME 或 ~/.codex；只支持绝对路径或 ~/ 开头的路径。"
         },
         "codexProfiles.showStatusBar": {
           "type": "boolean",
           "default": true,
-          "scope": "application",
+          "scope": "window",
           "description": "在状态栏显示 Codex profile 切换入口。"
         }
       }

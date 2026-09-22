@@ -1,6 +1,6 @@
 export const state = {
   values: new Map<string, unknown>(), commands: new Map<string, () => Promise<void>>(),
-  updates: [] as unknown[], notifications: [] as string[], choice: '', extensionPath: '',
+  updates: [] as unknown[], notifications: [] as string[], choice: '', extensionPath: '', confirmDisconnect: false,
   status: { text: '', tooltip: '', name: '', command: '', accessibilityInformation: {}, show() {}, hide() {}, dispose() {} }
 };
 export const StatusBarAlignment = { Right: 1 };
@@ -13,6 +13,8 @@ export const commands = {
   async executeCommand() {}
 };
 export const workspace = {
+  workspaceFolders: [{ uri: { fsPath: '/test/project' } }],
+  workspaceFile: undefined,
   getConfiguration(section: string) {
     return {
       get(key: string, fallback?: unknown) { return state.values.get(`${section}.${key}`) ?? fallback; },
@@ -27,5 +29,6 @@ export const window = {
   async showQuickPick(items: { label: string }[]) { return items.find(x => x.label === state.choice); },
   async showInformationMessage(message: string) { state.notifications.push(message); },
   async showErrorMessage(message: string) { state.notifications.push(message); },
+  async showWarningMessage(message: string) { state.notifications.push(message); return state.confirmDisconnect ? '停用所有窗口' : undefined; },
   async showTextDocument() {}
 };

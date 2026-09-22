@@ -1,13 +1,12 @@
-import { promises as fs } from 'node:fs';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { readProfile, profileArgs } from './profiles';
-import { LaunchSpec, resolveBinary } from './launcher';
+import { resolveBinary } from './launcher';
+import { readWindowSpec } from './window';
 
 async function main(): Promise<void> {
-  const spec = JSON.parse(await fs.readFile(process.argv[2], 'utf8')) as LaunchSpec;
-  if (spec.version !== 1) throw new Error('启动配置版本不受支持，请重新选择 profile。');
-  const args = profileArgs(await readProfile(spec.codexHome, spec.profile));
+  const spec = await readWindowSpec(process.argv[2]);
+  const args = spec.profile === null ? [] : profileArgs(await readProfile(spec.codexHome, spec.profile));
   const binary = await resolveBinary(spec);
   const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: spec.codexHome };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -22,7 +21,7 @@ async function main(): Promise<void> {
 
 main().catch(error => {
   // 只输出受控业务错误，不输出 profile、完整参数或解析器的原始错误行。
-  const message = error instanceof Error && /^(找不到|无法读取 profile|Profile |启动配置|当前版本)/.test(error.message)
+  const message = error instanceof Error && /^(找不到|无法读取 profile|Profile |窗口|启动配置|当前版本)/.test(error.message)
     ? error.message : '启动配置读取失败，请重新选择 profile。';
   process.stderr.write(`Codex Profiles：${message}\n`);
   process.exitCode = 1;

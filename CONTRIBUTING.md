@@ -15,13 +15,13 @@ npm run package
 
 `npm test` 会先构建运行文件，不依赖本机 Codex 账号或 profile。CI 在 macOS 与 Linux 上运行同样的检查，产出 VSIX 构建包。VS Code API 测试使用替身，不能替代扩展宿主中的交互验收。
 
-真实后端检查需要本机安装官方 Codex 扩展，以及自己的有效 profile：
+真实后端检查需要本机安装官方 Codex 扩展；脚本生成临时配置，不需要个人 profile：
 
 ```sh
-node scripts/smoke.mjs review
+node scripts/smoke.mjs
 ```
 
-默认查找标准 VS Code 安装目录。自定义安装位置可通过 `CODEX_SWITCHER_SMOKE_NODE` 指定启动运行时。该脚本不发送模型请求；请不要把私人配置或测试生成的日志提交到仓库。
+默认查找标准 VS Code 安装目录。自定义安装位置可通过 `CODEX_SWITCHER_SMOKE_NODE` 指定启动运行时。脚本并行启动两个独立宿主，核对配置隔离，再验证单个宿主恢复默认。该脚本不发送模型请求；请不要把私人配置或测试生成的日志提交到仓库。
 
 ## 修改约定
 

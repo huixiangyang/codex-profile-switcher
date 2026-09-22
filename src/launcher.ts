@@ -1,10 +1,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 export interface LaunchSpec {
-  version: 1;
-  profile: string;
+  version: 2;
+  profile: string | null;
   codexHome: string;
   binary: string;
 }
@@ -21,26 +21,19 @@ export async function atomicWrite(file: string, content: string | Buffer, mode =
   } finally { await fs.rm(temp, { force: true }); }
 }
 
-export async function createLauncher(storage: string, bridgeSource: string, node: string, spec: LaunchSpec): Promise<string> {
-  const dir = path.join(storage, 'launchers');
-  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-  const id = createHash('sha256').update(`${spec.codexHome}\0${spec.profile}`).digest('hex').slice(0, 16);
-  const base = path.join(dir, `${spec.profile}-${id}`);
-  const bridge = path.join(storage, 'bridge.cjs');
-  await atomicWrite(bridge, await fs.readFile(bridgeSource));
-  await atomicWrite(`${base}.json`, JSON.stringify(spec));
-  // 配置不写进 shell；启动时读取 TOML，修改 profile 后无需重新生成脚本。
-  const script = `#!/bin/sh\n# 由 Codex Profile Switcher 生成。\nexport ELECTRON_RUN_AS_NODE=1\nexec ${shellQuote(node)} ${shellQuote(bridge)} ${shellQuote(`${base}.json`)} "$@"\n`;
-  await atomicWrite(`${base}.sh`, script, 0o700);
-  return `${base}.sh`;
+export function launcherPath(storage: string): string {
+  return path.join(storage, 'launcher.sh');
 }
 
-export async function readManagedSpec(storage: string, executable: string | undefined): Promise<LaunchSpec | undefined> {
-  if (!executable || path.dirname(executable) !== path.join(storage, 'launchers') || !executable.endsWith('.sh')) return undefined;
-  try {
-    const spec = JSON.parse(await fs.readFile(executable.slice(0, -3) + '.json', 'utf8')) as LaunchSpec;
-    return spec.version === 1 && typeof spec.profile === 'string' && path.isAbsolute(spec.codexHome) ? spec : undefined;
-  } catch { return undefined; }
+export async function createLauncher(storage: string, bridgeSource: string, node: string): Promise<string> {
+  await fs.mkdir(storage, { recursive: true, mode: 0o700 });
+  const bridge = path.join(storage, 'bridge.cjs');
+  await atomicWrite(bridge, await fs.readFile(bridgeSource));
+  // 入口保持固定；exec 保留父进程，bridge 据此只连接所属窗口的扩展宿主。
+  const script = `#!/bin/sh\n# 由 Codex Profile Switcher 生成。\nexport ELECTRON_RUN_AS_NODE=1\nexec ${shellQuote(node)} ${shellQuote(bridge)} ${shellQuote(storage)} "$@"\n`;
+  const executable = launcherPath(storage);
+  await atomicWrite(executable, script, 0o700);
+  return executable;
 }
 
 export function binaryRelativePath(platform = process.platform, arch = process.arch): string {
