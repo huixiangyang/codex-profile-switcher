@@ -1,0 +1,253 @@
+/* 轻原生列表：以对齐、文字和轻表面建立层级，颜色与字体仍来自 VS Code。 */
+:root {
+  color-scheme: light dark;
+  --bg: var(--vscode-panel-background, #191d21);
+  --fg: var(--vscode-foreground, #d8dfe5);
+  --muted: var(--vscode-descriptionForeground, #8c969f);
+  --line: var(--vscode-panel-border, #303840);
+  --accent: var(--vscode-textLink-foreground, #6ebfc2);
+  --hover: var(--vscode-list-hoverBackground, #222b31);
+  --focus: var(--vscode-focusBorder, #6ebfc2);
+  --warning: var(--vscode-editorWarning-foreground, #dcba7c);
+  --error: var(--vscode-errorForeground, #ee918b);
+  --surface: color-mix(in srgb, var(--fg) 3.5%, var(--bg));
+  --edge: color-mix(in srgb, var(--fg) 9%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  --warning-soft: color-mix(in srgb, var(--warning) 10%, var(--bg));
+  --error-soft: color-mix(in srgb, var(--error) 10%, var(--bg));
+  --selected: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  /* 语义色与正文色混合，避免浅色主题的黄色、红色小字过浅。 */
+  --status-warning: color-mix(in srgb, var(--warning) 45%, var(--fg));
+  --status-error: color-mix(in srgb, var(--error) 45%, var(--fg));
+  --font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif);
+  --numbers: var(--font);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font: var(--vscode-font-size, 13px) / 1.45 var(--font);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+}
+button, input, select { font: inherit; }
+button {
+  color: inherit;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: 2px;
+}
+svg { width: 14px; height: 14px; stroke-width: 1.7; flex-shrink: 0; vertical-align: middle; }
+
+/* 只有当前筛选有轻底色，数量与监听入口不再各自套色块。 */
+#list-header {
+  height: 46px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+}
+.summary, .toolbar { display: flex; align-items: center; min-width: 0; }
+.summary { gap: 14px; white-space: nowrap; }
+.toolbar { gap: 4px; }
+.filters { display: flex; gap: 3px; }
+.filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 27px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.filters button:hover { color: var(--fg); background: var(--hover); }
+.filters button[aria-pressed="true"] { color: var(--fg); background: var(--surface); font-weight: 500; }
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.filters button[aria-pressed="true"] .filter-count { color: var(--fg); }
+select {
+  min-width: 0;
+  color: var(--fg);
+  background: var(--vscode-dropdown-background, var(--surface));
+  border: 1px solid var(--vscode-dropdown-border, var(--edge));
+  border-radius: 5px;
+  padding: 3px 7px;
+}
+#filter-select { display: none; height: 28px; max-width: 132px; font-size: 12px; }
+.source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.source svg { width: 12px; height: 12px; }
+.source:hover { background: var(--hover); color: var(--fg); }
+.source[data-mode="connected"] svg { color: var(--accent); }
+.source[data-mode="disconnected"] svg, .source[data-mode="unsupported"] svg { color: var(--warning); }
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 27px;
+  width: 176px;
+  padding: 0 8px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.search:focus-within { border-color: var(--focus); background: var(--vscode-input-background, var(--bg)); }
+.search svg { width: 13px; height: 13px; stroke-width: 1.6; }
+.search input { width: 100%; min-width: 0; padding: 2px 0; border: 0; background: transparent; color: var(--vscode-input-foreground, var(--fg)); font-size: 12px; outline: none; }
+.search input::placeholder { color: var(--vscode-input-placeholderForeground, var(--muted)); }
+.search input::-webkit-search-cancel-button { display: none; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border-radius: 6px; color: var(--muted); }
+.icon-button svg { stroke-width: 1.6; }
+.icon-button:hover { color: var(--fg); background: var(--hover); }
+
+/* 表格维持 44px 行高，强调可操作标题与数字，辅助信息退后。 */
+main { overflow: auto; flex: 1; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--vscode-scrollbarSlider-background, var(--line)) transparent; padding: 0 12px 8px; }
+table { width: 100%; min-width: 500px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+th { position: sticky; top: 0; z-index: 1; height: 30px; background: var(--bg); text-align: left; font-size: 12px; font-weight: 400; color: var(--muted); border-bottom: 1px solid var(--edge); }
+th, td { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+td { height: 44px; }
+tbody tr { cursor: pointer; clip-path: inset(2px 0 round 7px); transition: background-color 120ms ease; }
+tbody tr:hover { background: var(--hover); }
+tbody tr.selected { background: var(--selected); }
+/* 鼠标点击不显示整行硬框；键盘焦点仍有明确的可见边界。 */
+tr:has(:focus-visible) { outline: 1px solid var(--focus); outline-offset: -3px; }
+.title-cell { padding-right: 6px; }
+.title-layout { display: flex; align-items: center; gap: 5px; }
+.session-title { display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0; width: 100%; height: 44px; gap: 4px; padding: 0; text-align: left; font-weight: 400; letter-spacing: .05px; }
+tr.selected .session-title { font-weight: 500; }
+.session-title span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.session-title:focus-visible { outline: none; }
+.row-review { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 4px; min-width: 24px; height: 24px; padding: 0 4px; border-radius: 5px; color: var(--muted); opacity: 0; }
+.row-review svg { width: 12px; height: 12px; stroke-width: 1.5; }
+tr:hover .row-review, tr:focus-within .row-review, .row-review.has-pending { opacity: 1; }
+.row-review.has-pending { color: var(--accent); }
+.row-analysis { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 24px; padding: 0; border-radius: 5px; color: var(--muted); opacity: 0; }
+.row-analysis svg { width: 12px; height: 12px; stroke-width: 1.5; }
+tr:hover .row-analysis, tr:focus-within .row-analysis { opacity: 1; }
+.row-analysis:hover { color: var(--accent); background: var(--accent-soft); }
+.row-review:hover { background: var(--accent-soft); color: var(--accent); }
+.review-badge { font-size: 11px; font-variant-numeric: tabular-nums; }
+td.status, td.cwd-cell, td.model-cell, td.tokens-cell, td.rounds-cell, td.duration-cell, td.time-cell { font-size: 12px; color: var(--muted); }
+.status > span { display: inline-flex; align-items: center; gap: 6px; min-height: 22px; max-width: 100%; }
+.status svg { width: 12px; height: 12px; stroke-width: 1.6; }
+.status.live-idle svg { width: 6px; height: 6px; margin: 0 3px; }
+.status.live-running > span { color: var(--accent); }
+.status.live-running svg { color: var(--accent); }
+.status.live-input > span, .status.live-approval > span, .status.live-approvalInput > span { color: var(--status-warning); }
+.status.live-input svg, .status.live-approval svg, .status.live-approvalInput svg, .status.interrupted svg { color: var(--warning); }
+.status.failed > span, .status.live-error > span { color: var(--status-error); }
+.status.failed svg, .status.live-error svg { color: var(--error); }
+/* Token 用短标签与紧凑数字节省横向空间，保持原有 12px 字号。 */
+.token-breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; padding: 2px 0; line-height: 16px; }
+.token-metric { display: flex; align-items: baseline; justify-content: space-between; min-width: 0; gap: 4px; }
+.token-kind { flex-shrink: 0; color: var(--muted); }
+.token-value { color: color-mix(in srgb, var(--fg) 84%, var(--muted)); font-family: var(--numbers); font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: -.1px; }
+.token-metric[data-token="total"] .token-value { color: var(--fg); font-weight: 500; }
+.tokens-cell { padding-right: 6px; padding-left: 6px; cursor: help; }
+.rounds-cell { text-align: right; }
+td.rounds-cell { font-family: var(--numbers); font-variant-numeric: tabular-nums; }
+.duration-cell, .time-cell { font-variant-numeric: tabular-nums; }
+.match-count { color: var(--muted); padding: 5px 10px; font-size: 12px; }
+#notice { padding: 8px 16px; font-size: 12px; color: var(--fg); background: var(--warning-soft); border-bottom: 1px solid var(--edge); }
+/* 整页空态只作用于容器，不能影响使用 empty 状态的表格单元格。 */
+#empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 20px; color: var(--muted); font-size: 12px; text-align: center; }
+#empty svg { width: 22px; height: 22px; stroke-width: 1.3; color: color-mix(in srgb, var(--muted) 70%, var(--bg)); }
+
+/* 审阅详情使用明确的主操作，文件清单仍是轻量列表。 */
+#review { padding: 5px 8px 12px; }
+.review-heading, .review-actions, .review-file { display: flex; align-items: center; gap: 8px; }
+.review-heading { height: 34px; }
+.review-heading strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.review-status { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 4px; font-size: 12px; color: var(--muted); background: var(--surface); white-space: nowrap; }
+.review-status[data-status="pending"] { color: var(--accent); background: var(--accent-soft); }
+.review-status[data-status="updated"] { color: var(--fg); background: var(--warning-soft); }
+.review-status[data-status="reviewed"] { color: var(--vscode-testing-iconPassed, var(--accent)); background: var(--surface); }
+.review-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 28px; min-height: 28px; padding: 3px 6px; border-radius: 5px; color: var(--muted); font-size: 12px; }
+.review-button:hover { color: var(--fg); background: var(--hover); }
+.review-actions { padding: 4px 0 6px; }
+.review-actions select { flex: 1; font-size: 12px; height: 28px; }
+.review-actions .primary-action { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #176b75); padding: 3px 10px; }
+.review-actions .primary-action:hover:not(:disabled) { background: var(--vscode-button-hoverBackground, #1b7e8a); }
+.review-actions .secondary-action { color: var(--fg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--edge); padding: 3px 10px; }
+.review-note { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 5px 0 10px; }
+.review-note.needs-attention { color: var(--fg); padding-left: 9px; border-left: 2px solid var(--warning); }
+.review-files { border-top: 1px solid var(--edge); }
+.review-file { min-height: 36px; border-bottom: 1px solid color-mix(in srgb, var(--line) 38%, transparent); }
+.review-file:hover { background: var(--surface); }
+.patch-link { flex: 1; justify-content: flex-start; min-width: 0; color: var(--fg); gap: 8px; }
+.patch-link > svg { color: var(--muted); }
+.file-path { display: inline-flex; min-width: 0; max-width: 100%; }
+.file-directory { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-name { min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-kind { flex-shrink: 0; min-width: 32px; margin-left: 4px; padding: 1px 4px; border-radius: 3px; text-align: center; font-size: 11px; color: var(--muted); background: var(--surface); }
+.file-kind.add { color: var(--vscode-gitDecoration-addedResourceForeground, var(--fg)); background: var(--accent-soft); }
+.file-kind.delete { color: var(--vscode-gitDecoration-deletedResourceForeground, var(--fg)); background: var(--error-soft); }
+
+.loading svg, .status.live-running svg { animation: spin 1s linear infinite; transform-origin: center; transform-box: view-box; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 760px) { #filters { display: none; } #filter-select { display: block; } .row-review { opacity: 1; } .search { width: 168px; } }
+@media (max-width: 460px) { .source { display: none; } .search { width: 140px; } #list-header { gap: 8px; padding: 0 10px; } }
+@media (prefers-reduced-motion: reduce) { button, tbody tr { transition: none; } .loading svg, .status.live-running svg { animation: none; } }
+.vscode-high-contrast, .vscode-high-contrast-light { --edge: var(--vscode-contrastBorder, var(--fg)); }
+.vscode-high-contrast tbody tr, .vscode-high-contrast-light tbody tr { clip-path: none; }
+.vscode-high-contrast .filters button[aria-pressed="true"], .vscode-high-contrast-light .filters button[aria-pressed="true"],
+.vscode-high-contrast .row-review.has-pending, .vscode-high-contrast-light .row-review.has-pending,
+.vscode-high-contrast tbody tr.selected, .vscode-high-contrast-light tbody tr.selected { outline: 1px solid var(--focus); outline-offset: -1px; }
+
+.vscode-high-contrast .primary-action, .vscode-high-contrast-light .primary-action,
+.vscode-high-contrast .secondary-action, .vscode-high-contrast-light .secondary-action { box-shadow: inset 0 0 0 1px var(--edge); }
+
+/* 列设置只占用表头入口；弹层和拖动均不触发会话切换。 */
+.column-label { display: flex; align-items: center; gap: 5px; min-width: 0; }
+th.rounds-cell .column-label { justify-content: flex-end; }
+.column-settings-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 22px; padding: 0; border-radius: 4px; color: var(--muted); }
+.column-settings-button svg { width: 12px; height: 12px; }
+.column-settings-button:hover, .column-settings-button[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.column-resizer { position: absolute; top: 0; right: 0; bottom: 0; width: 9px; cursor: col-resize; touch-action: none; z-index: 2; }
+.column-resizer::after { content: ''; position: absolute; top: 6px; bottom: 6px; right: 2px; width: 1px; background: transparent; }
+.column-resizer:hover::after, .column-resizer:focus-visible::after { background: var(--focus); }
+.column-resizer:focus-visible { outline: 1px solid var(--focus); outline-offset: -1px; }
+.resizing-columns, .resizing-columns * { cursor: col-resize !important; user-select: none !important; }
+.column-menu { position: fixed; z-index: 20; left: 8px; top: 8px; display: flex; flex-direction: column; width: min(232px, calc(100vw - 16px)); max-height: calc(100vh - 16px); padding: 10px; border: 1px solid var(--vscode-menu-border, var(--edge)); border-radius: 10px; background: var(--vscode-menu-background, var(--bg)); box-shadow: 0 8px 32px var(--vscode-widget-shadow, #00000016), 0 2px 8px #00000008; color: var(--vscode-menu-foreground, var(--fg)); }
+.column-menu-heading { padding: 2px 6px 5px; font-size: 12px; font-weight: 500; }
+.column-menu-mode { margin: 0; padding: 2px 6px 8px; color: var(--muted); font-size: 12px; }
+.column-menu-options { min-height: 0; overflow: auto; scrollbar-width: thin; }
+.column-option { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 6px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+.column-option:hover { background: var(--hover); }
+.column-option:focus-within { outline: 1px solid var(--focus); outline-offset: -1px; }
+.column-option input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent); }
+.column-option small { margin-left: auto; font-size: 11px; color: var(--muted); }
+.column-option:has(input:disabled) { cursor: default; }
+.column-reset { display: flex; flex-shrink: 0; justify-content: center; align-items: center; gap: 6px; min-height: 32px; margin-top: 8px; border-top: 1px solid var(--edge); font-size: 12px; color: var(--muted); }
+.column-reset:hover { color: var(--accent); background: var(--hover); }

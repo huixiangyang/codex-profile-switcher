@@ -14,7 +14,7 @@ import { serveWindow, readWindowSpec } from '../src/window';
 test('profile 参数保留嵌套字面键、数组、Unicode、换行和日期', () => {
   const profile = parse(`model_provider = 'example'\nnote = "你好\\nworld"\ndate = 2026-09-22\n[projects."/tmp/a.b"]\ntrust_level = 'trusted'\n[[hooks.Stop]]\ncommand = 'printf "a; b"'\n`);
   const args = profileArgs(profile);
-  const restored = args.filter((_, i) => i % 2 === 1).reduce((all, value) => Object.assign(all, parse(value)), {});
+  const restored = args.filter((_, i) => i % 2 === 1).reduce((all, value) => Object.assign(all, parse(value)), Object.create(null));
   assert.deepEqual(restored, profile);
   assert.throws(() => profilePath('/tmp', '../escape'));
 });

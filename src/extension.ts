@@ -4,14 +4,23 @@ import path from 'node:path';
 import { createLauncher, binaryRelativePath, launcherPath, atomicWrite } from './launcher';
 import { listProfiles, resolveHome, readProfile, profileArgs, Profile } from './profiles';
 import { serveWindow } from './window';
+import { repairCodex } from './repair';
+import { SessionPanel } from './sessions/controller';
+import { supportsNavigation, supportedCodexVersion } from './sessions/navigation';
+import { LiveSessions } from './live/channel';
+import type { LiveMode } from './live/protocol';
 
 interface Choice extends vscode.QuickPickItem { profile?: Profile }
 interface Selection { profile: string | null; codexHome: string }
 const selectionKey = 'windowSelection';
+const liveKey = 'sessionLiveEnabled';
 let stopWindow: (() => Promise<void>) | undefined;
+let sessionPanel: SessionPanel | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const storage = context.globalStorageUri.fsPath;
+  // macOS 使用 VS Code 主程序的 Node 模式，不依赖另装 Node。
+  const runtime = process.platform === 'darwin' ? path.resolve(vscode.env.appRoot, '../../MacOS/Code') : process.execPath;
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 40);
   status.name = 'Codex Profile';
   status.command = 'codexProfiles.switch';
@@ -21,6 +30,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const startupExecutable = executable();
   let selection = context.workspaceState.get<Selection>(selectionKey) ?? { profile: null, codexHome: home() };
   const startupSelection = { ...selection };
+  let liveEnabled = context.workspaceState.get<boolean>(liveKey) ?? false;
+  const startupLive = liveEnabled && managed() && supportsNavigation() && vscode.workspace.isTrusted
+    && !vscode.env.remoteName && process.platform !== 'win32';
+  const live = new LiveSessions();
+  let liveStartupFailed = false;
+  const liveMode = (): LiveMode => {
+    if (!liveEnabled && !startupLive) return 'off';
+    if (liveEnabled && !supportsNavigation()) return 'unsupported';
+    if (liveEnabled && liveStartupFailed) return 'disconnected';
+    if (liveEnabled !== startupLive || !managed()) return 'reload';
+    try { if (startupSelection.codexHome !== home()) return 'reload'; }
+    catch { return 'reload'; } // 无效目录的具体错误由记录读取器展示，不能打断状态渲染。
+    return live.connected ? 'connected' : live.seenConnection || live.startedAt > 0 && Date.now() - live.startedAt > 15000 ? 'disconnected' : 'connecting';
+  };
   let busy = false;
 
   function requireLocal(): void {
@@ -43,6 +66,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     status.tooltip = `当前窗口的 Codex profile\n当前选择：${label}\n${moved ? '配置目录已更改，请重新选择 profile。' : pending ? '选择已保存，只需重新加载当前窗口。' : '此窗口独立选择；旧对话可能保留原有 provider。'}`;
     status.accessibilityInformation = { label: `当前窗口 Codex profile：${label}${pending ? '，等待重新加载窗口' : ''}` };
     if (vscode.workspace.getConfiguration('codexProfiles').get('showStatusBar', true)) status.show(); else status.hide();
+    sessionPanel?.update();
   }
 
   async function reloadNotice(): Promise<void> {
@@ -56,14 +80,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       throw new Error('请先打开文件夹或工作区，再为当前窗口选择 profile。');
     }
     const next: Selection = { profile: profile?.name ?? null, codexHome: home() };
-    if (profile) profileArgs(await readProfile(next.codexHome, profile.name));
+    await saveStartup(next, liveEnabled);
+    await refresh();
+    void reloadNotice();
+  }
+
+  async function saveStartup(next: Selection, observe: boolean): Promise<void> {
+    if (next.profile) profileArgs(await readProfile(next.codexHome, next.profile));
     await fs.access(binary(), fs.constants.X_OK);
     const config = vscode.workspace.getConfiguration('chatgpt');
     const inspected = config.inspect<string | null>('cliExecutable');
-    // macOS 使用 VS Code 主程序的 Node 模式，不依赖另装 Node。
-    const runtime = process.platform === 'darwin'
-      ? path.resolve(vscode.env.appRoot, '../../MacOS/Code') : process.execPath;
-    const launcher = await createLauncher(storage, context.asAbsolutePath('dist/bridge.cjs'), runtime);
+    const launcher = await createLauncher(storage, context.asAbsolutePath('dist/bridge.cjs'), runtime, observe ? context.asAbsolutePath('dist/observer.cjs') : undefined);
     if (!managed()) {
       const backup = path.join(storage, 'previous-startup.json');
       try { await fs.access(backup); }
@@ -79,8 +106,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       throw error;
     }
     selection = next;
-    await refresh();
-    void reloadNotice();
+  }
+
+  async function configureLive(): Promise<void> {
+    requireLocal();
+    const enable = !liveEnabled;
+    if (enable) {
+      if (!vscode.workspace.isTrusted) throw new Error('请先信任工作区，再启用实时监听。');
+      if (!vscode.workspace.workspaceFolders?.length) throw new Error('请先打开文件夹或工作区。');
+      if (!supportsNavigation()) throw new Error(`实时监听只支持已核验的官方版本 ${supportedCodexVersion}。`);
+      if (managed() && selection.codexHome !== home()) throw new Error('配置目录已更改，请先重新选择当前窗口的 Profile。');
+    }
+    const label = enable ? '启用实时监听' : '关闭实时监听';
+    const detail = enable
+      ? `监听当前窗口后端的运行、批准和输入等待事件，通信原样转发，不代答批准。${!managed() ? executable() ? '将替换现有自定义启动入口；其他窗口重载后也会经过统一启动器，但不会自动启用监听。' : '需要设置统一启动入口；其他窗口重载后默认不监听。' : ''}当前任务不会重启，请在任务结束后重载本窗口。`
+      : '立即停止面板显示实时状态；转发层在任务结束、重载本窗口后退出。Profile 选择保留。';
+    if (await vscode.window.showWarningMessage(detail, { modal: true }, label) !== label) return;
+    await context.workspaceState.update(liveKey, enable);
+    try { if (enable) await saveStartup(managed() ? selection : { profile: null, codexHome: home() }, true); }
+    catch (error) { await context.workspaceState.update(liveKey, liveEnabled); throw error; }
+    liveEnabled = enable;
+    sessionPanel?.update();
+    const reload = await vscode.window.showInformationMessage(`${label}设置已保存。请在当前任务结束后重载窗口生效。`, '重新加载窗口', '稍后');
+    if (reload === '重新加载窗口') await vscode.commands.executeCommand('workbench.action.reloadWindow');
   }
 
   async function choose(): Promise<void> {
@@ -117,6 +165,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (reload) await vscode.commands.executeCommand('workbench.action.reloadWindow');
   }
 
+  async function repair(restore = false): Promise<void> {
+    requireLocal();
+    const codex = vscode.extensions.getExtension('openai.chatgpt');
+    if (!codex) throw new Error('请先安装官方 Codex 扩展（openai.chatgpt）。');
+    const result = await repairCodex(codex.extensionPath, storage, restore);
+    const message = restore
+      ? result.changed ? '已还原 Codex 官方文件。' : 'Codex 文件已是官方原版。'
+      : result.changed ? '已修复 Codex 空响应解析，并阻止其他窗口自动接管待发送队列。' : 'Codex 已应用此修复。';
+    const reload = await vscode.window.showInformationMessage(
+      `${message}请在任务结束后重载所有使用 Codex 的窗口。此修复不处理 Electron 原生崩溃。`, '重新加载当前窗口', '稍后'
+    );
+    if (reload === '重新加载当前窗口') await vscode.commands.executeCommand('workbench.action.reloadWindow');
+  }
+
   const run = (action: () => Promise<void>) => async () => {
     if (busy) return;
     busy = true;
@@ -128,8 +190,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   context.subscriptions.push(status,
     vscode.commands.registerCommand('codexProfiles.switch', run(choose)),
+    vscode.commands.registerCommand('codexSessions.configureLive', run(configureLive)),
     vscode.commands.registerCommand('codexProfiles.reset', run(() => setProfile())),
     vscode.commands.registerCommand('codexProfiles.disconnect', run(disconnect)),
+    vscode.commands.registerCommand('codexProfiles.repairCodex', run(() => repair())),
+    vscode.commands.registerCommand('codexProfiles.restoreCodex', run(() => repair(true))),
     vscode.commands.registerCommand('codexProfiles.refresh', run(async () => { await listProfiles(home()); await refresh(); })),
     vscode.commands.registerCommand('codexProfiles.open', run(async () => {
       const current = managed() ? selection : { profile: null, codexHome: home() };
@@ -140,13 +205,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
   if (!vscode.env.remoteName && process.platform !== 'win32') {
+    // 更新我们自己的启动桥接，不重启现有后端，不改官方扩展或 Profile。
+    if (managed()) {
+      await createLauncher(storage, context.asAbsolutePath('dist/bridge.cjs'), runtime, startupLive ? context.asAbsolutePath('dist/observer.cjs') : undefined);
+    }
+  }
+  sessionPanel = new SessionPanel(context, home, live, liveMode);
+  await sessionPanel.start();
+  if (!vscode.env.remoteName && process.platform !== 'win32') {
     // 固定本次宿主启动时的选择；保存新选择后，必须重载此窗口才会用于后端。
-    stopWindow = await serveWindow(storage, { version: 2, ...startupSelection, binary: binary() });
+    let liveSocket: string | undefined;
+    if (startupLive) {
+      try { liveSocket = await live.start(storage); }
+      catch {
+        liveStartupFailed = true;
+        await live.dispose();
+        sessionPanel.update();
+        void vscode.window.showErrorMessage('实时监听未能启动，已保留原始标准流启动方式和本地记录面板。请检查扩展存储权限后重载。');
+      }
+    }
+    stopWindow = await serveWindow(storage, { version: 2, ...startupSelection, binary: binary(), ...(liveSocket ? { liveSocket } : {}) });
   }
   await refresh();
 }
 
 export async function deactivate(): Promise<void> {
+  const current = sessionPanel; sessionPanel = undefined;
+  await current?.dispose();
   const stop = stopWindow;
   stopWindow = undefined;
   await stop?.();

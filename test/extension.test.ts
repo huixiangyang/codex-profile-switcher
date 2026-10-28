@@ -56,6 +56,28 @@ test('工作区选择独立保存、重载恢复、默认隔离，只有接管�
   assert.equal(state.values.get('chatgpt.cliExecutable'), launcherPath(storage));
   assert.equal((projectA.get('windowSelection') as { profile: string | null }).profile, null);
   assert.equal((projectB.get('windowSelection') as { profile: string }).profile, 'other');
+  // 实时监听独立选择，必须确认并重载；默认窗口及原 Profile 使用不受影响。
+  await state.commands.get('codexSessions.configureLive')!();
+  assert.equal(projectA.get('sessionLiveEnabled'), undefined);
+  state.confirmLive = '启用实时监听';
+  await state.commands.get('codexSessions.configureLive')!();
+  assert.equal(projectA.get('sessionLiveEnabled'), true);
+  assert.equal((await readWindowSpec(storage, process.pid)).liveSocket, undefined);
+  await deactivate(); await activate(context(projectA));
+  assert.ok((await readWindowSpec(storage, process.pid)).liveSocket);
+  assert.equal((await readWindowSpec(storage, process.pid)).profile, null);
+  await deactivate(); await activate(context(projectB));
+  assert.equal((await readWindowSpec(storage, process.pid)).liveSocket, undefined);
+  await deactivate();
+  state.extensionVersion = 'unverified'; await activate(context(projectA));
+  assert.equal((await readWindowSpec(storage, process.pid)).liveSocket, undefined);
+  await deactivate(); state.extensionVersion = '26.51021.22027'; await activate(context(projectA));
+  state.confirmLive = '关闭实时监听'; await state.commands.get('codexSessions.configureLive')!();
+  assert.equal(projectA.get('sessionLiveEnabled'), false);
+  assert.ok((await readWindowSpec(storage, process.pid)).liveSocket);
+  await deactivate(); await activate(context(projectA));
+  assert.equal((await readWindowSpec(storage, process.pid)).liveSocket, undefined);
+  state.confirmLive = '';
   await state.commands.get('codexProfiles.disconnect')!();
   assert.equal(state.updates.length, 1);
   state.confirmDisconnect = true;

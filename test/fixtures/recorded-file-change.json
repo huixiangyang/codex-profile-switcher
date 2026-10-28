@@ -1,0 +1,65 @@
+{
+  "record": {
+    "type": "item_completed",
+    "thread_id": "01a162a8-fd53-7460-a79c-4a2597e7a825",
+    "turn_id": "01a162a8-fd78-7692-b5aa-38c9b59af065",
+    "item": {
+      "type": "FileChange",
+      "id": "call_1",
+      "changes": {
+        "/workspace/delete.txt": {
+          "type": "delete",
+          "content": "removed\n"
+        },
+        "/workspace/edit.txt": {
+          "type": "update",
+          "unified_diff": "@@ -1 +1 @@\n-old\n+updated\n",
+          "move_path": null
+        },
+        "/workspace/added.txt": {
+          "type": "add",
+          "content": "created\n"
+        }
+      },
+      "status": "completed",
+      "stdout": "Success. Updated the following files:\nA added.txt\nM edit.txt\nD delete.txt\n",
+      "stderr": ""
+    },
+    "started_at_ms": 1792656604593,
+    "completed_at_ms": 1792656604678
+  },
+  "live": {
+    "item": {
+      "type": "fileChange",
+      "id": "call_1",
+      "changes": [
+        {
+          "path": "/workspace/added.txt",
+          "kind": {
+            "type": "add"
+          },
+          "diff": "created\n"
+        },
+        {
+          "path": "/workspace/delete.txt",
+          "kind": {
+            "type": "delete"
+          },
+          "diff": "removed\n"
+        },
+        {
+          "path": "/workspace/edit.txt",
+          "kind": {
+            "type": "update",
+            "move_path": null
+          },
+          "diff": "@@ -1 +1 @@\n-old\n+updated\n"
+        }
+      ],
+      "status": "completed"
+    },
+    "threadId": "01a162a8-fd53-7460-a79c-4a2597e7a825",
+    "turnId": "01a162a8-fd78-7692-b5aa-38c9b59af065",
+    "completedAtMs": 1792656604678
+  }
+}

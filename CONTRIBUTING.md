@@ -25,11 +25,12 @@ node scripts/smoke.mjs
 
 ## 修改约定
 
-- 保持原生 VS Code 控件、键盘操作和主题一致性。
-- 不改写用户级 Codex 配置和凭据，不修改官方扩展。
+- 保持 VS Code 控件、键盘操作和主题一致性；会话面板 Webview 使用 Lucide 图标及 VS Code 设计变量。
+- 不改写用户级 Codex 配置和凭据。只有显式修复／还原命令可修改官方扩展，且必须固定版本、完整文件哈希、预检、可信备份、幂等与失败回滚；不得自动适配未知版本。
 - 功能变更同步中英文 README 与 CHANGELOG。
 - 为行为或失败恢复添加必要测试，不测试固定文案或 CSS。
 - 涉及官方扩展启动协议时，记录实际验证过的版本和范围。
+- 修复官方文件时，用 `node scripts/verify-repair.mjs <官方扩展目录>` 验证临时副本；不把副本检查当作真实 UI 或模型端到端验收。
 
 ## 发布到 GitHub Releases
 
@@ -39,3 +40,32 @@ node scripts/smoke.mjs
 4. 创建 GitHub Release，附上 `artifacts/*.vsix`、SHA-256 校验文件，以及使用说明和验收边界。
 
 当前发行渠道是 GitHub Releases；此流程不发布到 VS Code Marketplace。
+
+## 会话面板验收
+
+- `node scripts/verify-sessions-ui.mjs`：实际 Webview 代码加夹具数据，检查同列 Token 明细、会话轮次、缺失数值、搜索、点击、键盘操作、紧凑布局及明暗／高对比主题，并验证增量渲染的节点复用、重排、滚动及后台焦点。列布局检查涵盖拖动／键盘调整、显示选择、重建恢复、保存期间旧快照、保存失败回滚和审阅返回后的横向滚动；保存回执使用宿主消息夹具。需要本机 Chrome；截图位于 `artifacts/sessions-ui/`。
+- `node scripts/verify-sessions.mjs`：macOS 隔离 VS Code 用户目录、CODEX_HOME 和三项目八会话，模型端点仅使用本地固定响应服务。不配置 `chatgpt.cliExecutable`，验证只读记录统计、底部面板、官方侧栏实际切换、切回，以及不新增编辑器标签、不改变代码选区及后台刷新后编辑器仍然激活。脚本只关闭自己的测试宿主，证据目录由 `VERIFY_ROOT` 输出。
+- 导航适配集中在 `src/sessions/navigation.ts`，核对新官方版本的 URI 路由后再更新 `supportedCodexVersion`；读取器独立核对落盘字段与单位。不修改官方安装文件，不为未知版本添加猜测性兼容。
+- `node scripts/verify-navigation.mjs`：读取已安装官方扩展的实际 URI handler、侧栏选择器与导航方法，在隔离 VM 中检查 A → B → A、当前版本侧栏目标及未加载侧栏的排队交付，并核对前端路由入口。它不启动 VS Code；不能代替原生窗口中的点击验收。更新适配版本时同步维护实时和补丁验证脚本的目标版本。
+
+## 分析页验收
+
+- `npm run build && node scripts/preview-analytics.mjs` 生成 `artifacts/analytics-ui/`，包含实际 HTML / JS / CSS 和合成宿主消息。通过本地静态服务器查看 `light.html`、`dark.html`、`contrast.html`；`bottom-frame.html` 检查窄面板入口。
+- `?scenario=empty`、`fork`、`missing`、`zero`、`long`、`append` 分别提供空数据、分叉、会话移除、零用量、长历史和刷新追加场景。验证搜索／目录筛选的统计一致性、图表与明细联动、分页、保留选中回合和审阅目标。
+- `test/analytics.test.ts` 覆盖累计口径、未知／零、加权缓存比例、编辑器组内单标签复用、工作区切换和只发送所选会话摘要。VS Code API 替身不代表真实编辑器宿主已验收。
+
+## 实时监听验收
+
+- `node scripts/verify-live.mjs`：隔离真实官方后端与本地固定响应服务，触发运行、命令批准和 Plan 模式用户输入；脚本作为测试客户端明确拒绝批准并回答测试问题，验证状态回到空闲。生产转发器不代答、不注入查询。
+- `node scripts/verify-sessions.mjs --live`：在隔离 VS Code 内确认启用、重载，核对实际 Worker 启动、官方侧栏发送后的运行状态、结束后空闲和无按钮的自动刷新。默认无参数版本继续验证未配置启动器的本地记录模式。
+- `npm test` 中的透明转发测试逐字节比较双方原始数据，覆盖大输出、批准消息、旁路断开和退出信号；不要只用协议 mock 宣称真实后端已通过。
+- 实时适配必须依据目标版本生成的 `ThreadStatus` / `ThreadActiveFlag`，未知等待标记清除观测；不要按工具名猜测输入是否阻塞，也不要增加代答批准或查询注入。
+
+## 队列与审阅验收
+
+- `node scripts/verify-review.mjs`：固定响应驱动真实后端在临时目录新增、修改、删除文件，验证实时与 JSONL 补丁的证据身份一致及只读恢复。
+- `node scripts/verify-sessions-ui.mjs`：增加筛选、按轮确认、独立补丁动作、宽窄审阅视图和稳定行顺序的交互验证。
+- `node scripts/verify-sessions.mjs` 及 `--live`：在已建立基线后追加多个结果，检查真实只读预览不混轮、审阅旧轮时新结果不抢占，以及下一条待处理切换官方侧栏。
+- `node scripts/verify-host-exit.mjs`：默认不加载切换器、Codex 或 CDP；`--cdp`、`--codex`、`--switcher` 分别做控制变量退出对照。强制清理必须单独记录，不能当作正常退出通过。
+
+文件级夹具来自已核验版本；新增类型必须先有原始证据。统一修改 `workflow.ts` 的状态规则，不在 Webview 另做一套审阅判断。

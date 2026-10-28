@@ -7,6 +7,7 @@ export interface LaunchSpec {
   profile: string | null;
   codexHome: string;
   binary: string;
+  liveSocket?: string;
 }
 
 export function shellQuote(value: string): string {
@@ -25,10 +26,11 @@ export function launcherPath(storage: string): string {
   return path.join(storage, 'launcher.sh');
 }
 
-export async function createLauncher(storage: string, bridgeSource: string, node: string): Promise<string> {
+export async function createLauncher(storage: string, bridgeSource: string, node: string, observerSource?: string): Promise<string> {
   await fs.mkdir(storage, { recursive: true, mode: 0o700 });
   const bridge = path.join(storage, 'bridge.cjs');
   await atomicWrite(bridge, await fs.readFile(bridgeSource));
+  if (observerSource) await atomicWrite(path.join(storage, 'observer.cjs'), await fs.readFile(observerSource));
   // 入口保持固定；exec 保留父进程，bridge 据此只连接所属窗口的扩展宿主。
   const script = `#!/bin/sh\n# 由 Codex Profile Switcher 生成。\nexport ELECTRON_RUN_AS_NODE=1\nexec ${shellQuote(node)} ${shellQuote(bridge)} ${shellQuote(storage)} "$@"\n`;
   const executable = launcherPath(storage);

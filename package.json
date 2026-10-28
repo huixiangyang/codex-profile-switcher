@@ -1,13 +1,18 @@
 {
   "name": "codex-profile-switcher",
-  "displayName": "Codex Profile Switcher",
-  "description": "为每个 VS Code 窗口独立切换 Codex profile，按工作区记住选择。",
-  "version": "0.2.0",
+  "displayName": "Codex Sessions & Profiles",
+  "description": "底部汇总与切换 Codex 会话，编辑区分析用量和逐轮记录；可选实时状态，保留独立窗口 Profile。",
+  "version": "0.9.3",
   "publisher": "huixiangyang",
   "author": "huixiangyang",
-  "repository": { "type": "git", "url": "https://github.com/huixiangyang/codex-profile-switcher.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/huixiangyang/codex-profile-switcher.git"
+  },
   "homepage": "https://github.com/huixiangyang/codex-profile-switcher#readme",
-  "bugs": { "url": "https://github.com/huixiangyang/codex-profile-switcher/issues" },
+  "bugs": {
+    "url": "https://github.com/huixiangyang/codex-profile-switcher/issues"
+  },
   "private": true,
   "license": "MIT",
   "engines": {
@@ -19,7 +24,9 @@
   "keywords": [
     "codex",
     "profile",
-    "switcher"
+    "switcher",
+    "sessions",
+    "multi-project"
   ],
   "extensionKind": [
     "workspace"
@@ -65,6 +72,46 @@
         "command": "codexProfiles.disconnect",
         "title": "停用切换器（所有窗口）",
         "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.repairCodex",
+        "title": "修复 Codex 已知问题（所有窗口）",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.restoreCodex",
+        "title": "还原 Codex 官方文件（所有窗口）",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexSessions.open",
+        "title": "打开会话面板",
+        "category": "Codex 会话"
+      },
+      {
+        "command": "codexSessions.refresh",
+        "title": "刷新会话",
+        "category": "Codex 会话"
+      },
+      {
+        "command": "codexSessions.configureLive",
+        "title": "配置实时状态监听（当前窗口）",
+        "category": "Codex 会话"
+      },
+      {
+        "command": "codexSessions.next",
+        "title": "下一条待处理会话",
+        "category": "Codex 会话"
+      },
+      {
+        "command": "codexSessions.review",
+        "title": "审阅选中会话",
+        "category": "Codex 会话"
+      },
+      {
+        "command": "codexSessions.analytics",
+        "title": "打开会话分析",
+        "category": "Codex 会话"
       }
     ],
     "configuration": {
@@ -84,7 +131,32 @@
           "description": "在状态栏显示 Codex profile 切换入口。"
         }
       }
-    }
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "codexSessions",
+          "title": "Codex 会话",
+          "icon": "resources/sessions.svg"
+        }
+      ]
+    },
+    "views": {
+      "codexSessions": [
+        {
+          "id": "codexSessions.list",
+          "name": "Codex 会话",
+          "type": "webview"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "codexSessions.open",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k"
+      }
+    ]
   },
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -96,13 +168,15 @@
     "package": "vsce package --no-dependencies --out artifacts/"
   },
   "dependencies": {
-    "smol-toml": "1.8.0"
+    "lucide": "0.468.0",
+    "smol-toml": "1.9.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "1.95.0",
     "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.0",
+    "playwright": "1.56.1",
     "typescript": "^5.9.0"
   }
 }
