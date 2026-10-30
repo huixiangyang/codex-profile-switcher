@@ -13,7 +13,7 @@ A compact **Codex 会话** panel beside Terminal. Read existing local conversati
 
 VS Code asks permission on the first URI navigation; you may select “Do not ask me again for this extension”. The extension does not alter URI trust settings.
 
-The interface uses a soft, native-style list with VS Code theme tokens, typography and compact 44px rows. Regular themes replace row rules and filled status badges with subtle selection, lightweight filters and clearer text hierarchy. Waiting and failure states retain semantic color and icons. Review details make the explicit review action easy to find. Keyboard focus, high-contrast and reduced-motion settings remain supported.
+The panel uses a compact native workbench style, inheriting VS Code colors and fonts with 44px rows. Grouped filters, subtle dividers and a selected-row rail improve scanning; search, hover and keyboard focus share consistent control boundaries. Waiting/failure states retain semantic colors and icons, while review emphasizes its explicit confirmation action. Narrow panels, high-contrast themes and reduced-motion preferences remain supported.
 
 ### Adjust the columns
 
@@ -29,7 +29,7 @@ Keyboard users can Tab to a divider and use Left/Right to resize; Escape cancels
 
 Click the chart button in the bottom panel, or run **Codex 会话: 打开会话分析**, to open **会话分析** in the active editor group. Reopening reuses the same tab.
 
-Analysis starts directly with controls and data, without a large heading/subtitle block. The overview puts sessions beside the charts; detail aligns usage, turn timing and the selected turn, followed immediately by the record table. Body text stays at 12–13px.
+Analysis starts directly with controls and data, without a large heading/subtitle block. A compact metric strip separates labels from values; the overview puts sessions beside charts, and detail aligns usage, turn timing and the selected turn above the record table. Light section boundaries and right-aligned numbers aid comparison. Narrow editors stack sections and keep horizontal scrolling inside tables. Body text stays at 12–13px.
 
 - The overview compares current-workspace tokens, weighted cache-hit rate, turns and recorded execution time. Search, filter by working directory, or sort the session table.
 - Click a session title, or its bottom-panel chart button, for usage composition, duration median/P95 and per-turn records.

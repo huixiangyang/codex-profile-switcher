@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — UI polish (preview)
+
+- Refine the bottom session panel with grouped filters, consistent input/action sizing, subtle row separators and a selected-row rail. Keep 44px rows, the 136px minimum Token column, saved layouts and all existing actions.
+- Clarify the analysis metric strip, numeric alignment, table sections and turn inspector while preserving the table-first layout and compact typography. Stack sections for narrow editors and contain table scrolling.
+- Improve focus, high-contrast and reduced-motion styling without changing records, statistics, navigation, profiles or live monitoring.
+- Add portable Chrome/Chromium discovery and a synthetic analytics browser verification script. This preview has not completed browser rendering or real VS Code extension-host acceptance; the restricted build environment could not launch Chromium.
+
 ## 0.9.3
 
 - Adapt navigation and live monitoring to official Codex `26.51021.22027`. Keep the existing window-bound `/local/<threadId>` sidebar route.
