@@ -1,10 +1,25 @@
 # Changelog
 
-## Unreleased
+## Unreleased — Profile assistant (preview)
 
 - Add a native Profile draft wizard with coding/review/custom templates, validated names, metadata-only model/provider choices and explicit reasoning effort. Open an unsaved TOML editor; do not write configuration/credentials, create directories or switch automatically.
 - Add an opt-in safe override preview and expose create/preview actions in the switch picker, including its empty state. Preview only allowlisted metadata and recognized overrides; hide other values without dropping them from actual profile application. Normal switching retains its existing flow.
 - Require trusted local workspaces for the assistant and preview. Keep credentials, raw TOML, parser error values and full command arguments out of their prompts. Add synthetic unit/host-stub coverage and bilingual usage documentation; native extension-host acceptance remains separate.
+
+## Unreleased — Session organization and CSV (preview)
+
+- Add per-session favorites and lightweight custom tags, stored only in the extension's workspace metadata and isolated by Codex source/session ID. Serialize writes, preserve saved values on failure and reject stale source actions; leave official records untouched.
+- Combine favorites-only and tag filters with existing status/search controls. Keep favorites first in ordinary lists without changing attention priority, next-attention navigation or per-turn review semantics.
+- Export the current filtered sessions from a host-validated fixed snapshot through native field selection and a save dialog. Keep identifying fields opt-in; omit conversation bodies, patches and working-directory fields. Cancellation writes nothing.
+- Preserve unknown versus zero, flag inherited/incomplete records and label usage as latest session totals rather than period consumption or cost. Escape CSV and neutralize formula-like text; do not add a cross-session total row.
+- Add focused persistence/filter/export coverage. Unit and synthetic-browser checks do not replace native VS Code interaction acceptance; this feature preview has not completed real extension-host acceptance.
+
+## Unreleased — UI polish (preview)
+
+- Refine the bottom session panel with grouped filters, consistent input/action sizing, subtle row separators and a selected-row rail. Keep 44px rows, the 136px minimum Token column, saved layouts and all existing actions.
+- Clarify the analysis metric strip, numeric alignment, table sections and turn inspector while preserving the table-first layout and compact typography. Stack sections for narrow editors and contain table scrolling.
+- Improve focus, high-contrast and reduced-motion styling without changing records, statistics, navigation, profiles or live monitoring.
+- Add portable Chrome/Chromium discovery and a synthetic analytics browser verification script. This preview has not completed browser rendering or real VS Code extension-host acceptance; the restricted build environment could not launch Chromium.
 
 ## 0.9.3
 

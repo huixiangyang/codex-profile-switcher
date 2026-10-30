@@ -28,6 +28,7 @@ export const commands = {
   async executeCommand() {}
 };
 export const workspace = {
+  fs: { async writeFile() { throw new Error("测试需要显式提供文件写入替身"); } },
   workspaceFolders: [{ uri: Uri.file('/test/project') }],
   isTrusted: true,
   workspaceFile: undefined,
@@ -52,6 +53,7 @@ export const window = {
   createWebviewPanel() { throw new Error('测试需要显式提供 WebviewPanel 替身'); },
   registerWebviewViewProvider() { return { dispose() {} }; },
   createStatusBarItem: () => state.status,
+  async showSaveDialog() { return undefined; },
   async showQuickPick(items: StubPickItem[], options?: unknown) {
     state.picks.push({ items, options });
     return state.quickPickHandler ? state.quickPickHandler(items, options) : items.find(x => x.label === state.choice);
