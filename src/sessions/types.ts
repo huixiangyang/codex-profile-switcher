@@ -21,8 +21,10 @@ export interface Session {
   createdAt: number; turns: TurnSummary[]; workflow?: WorkflowState; id: string; title: string; cwd: string; updatedAt: number;
   provider: string; model: string; state: RecordState; stateAt: number | null; stateReason: StateReason;
   cwdLabel: string; stats: SessionStats; live?: LiveEntry;
+  organization?: { favorite: boolean; tags: string[] };
 }
 export interface ViewState {
+  scope?: number; organizationPending?: string[]; exporting?: boolean;
   columnLayout: ColumnLayoutPreferences; columnLayoutAck?: string;
   liveMode: LiveMode; sourceAvailable: boolean; loading: boolean; error?: string; supported: boolean;
   selectedId?: string; sessions: Session[]; review?: ReviewDetail; focusAttention?: number;
@@ -36,6 +38,9 @@ export interface ReviewDetail {
 export type PanelAction = { action: 'open' | 'refresh' | 'configureLive' | 'next' | 'back' }
   | { action: 'analytics'; id?: string }
   | { action: 'layout'; layout: ColumnLayoutPreferences; requestId: string }
+  | { action: 'favorite'; scope: number; id: string; favorite: boolean }
+  | { action: 'tags'; scope: number; id: string }
+  | { action: 'export'; scope: number; ids: string[] }
   | { action: 'switch'; id: string }
   | { action: 'review'; id: string; turnId?: string }
   | { action: 'mark'; id: string; turnId: string; version: string; reviewed: boolean }
@@ -43,6 +48,13 @@ export type PanelAction = { action: 'open' | 'refresh' | 'configureLive' | 'next
 export type ViewMessage = PanelAction | { action: 'ready' };
 export function isViewMessage(value: unknown): value is ViewMessage {
   if (!value || typeof value !== 'object' || !('action' in value)) return false;
+  if (['favorite', 'tags', 'export'].includes(String(value.action))) {
+    const message = value as Record<string, unknown>;
+    if (!Number.isSafeInteger(message.scope) || (message.scope as number) < 0) return false;
+    if (message.action === 'export') return Array.isArray(message.ids) && message.ids.length > 0 && message.ids.length <= 100000
+      && message.ids.every(id => typeof id === 'string' && id.length > 0 && id.length <= 1024) && new Set(message.ids).size === message.ids.length;
+    return typeof message.id === 'string' && !!message.id && message.id.length <= 1024 && (message.action === 'tags' || typeof message.favorite === 'boolean');
+  }
   if (value.action === 'analytics') return !('id' in value) || typeof value.id === 'string' && !!value.id;
   if (value.action === 'layout') return 'layout' in value && isColumnLayout(value.layout) && 'requestId' in value && typeof value.requestId === 'string' && value.requestId.length > 0 && value.requestId.length <= 128;
   if (['ready','open','refresh','configureLive','next','back'].includes(String(value.action))) return true;

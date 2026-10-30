@@ -1,4 +1,4 @@
-import { createElement, Circle, CircleAlert, CircleStop, Check, LoaderCircle, ShieldQuestion, CircleHelp, FileDiff, ChartNoAxesCombined } from 'lucide';
+import { createElement, Circle, CircleAlert, CircleStop, Check, LoaderCircle, ShieldQuestion, CircleHelp, FileDiff, ChartNoAxesCombined, Star, Tag } from 'lucide';
 import { columns } from './columns';
 import type { Session } from './types';
 import { sessionStatusLabel, sessionStatusHint } from './status';
@@ -27,6 +27,9 @@ class SessionRow {
   private title = document.createElement('span');
   private review = document.createElement('button');
   private badge = document.createElement('span');
+  private favorite = document.createElement('button');
+  private tags = document.createElement('button');
+  private tagLabel = document.createElement('span');
   private status = cell();
   private cwd = cell('cwd-cell');
   private model = cell('model-cell');
@@ -39,13 +42,17 @@ class SessionRow {
   constructor(id: string) {
     this.element.dataset.id = id; this.button.dataset.id = id; this.button.className = 'session-title';
     this.button.append(this.title);
-    const titleCell = cell('title-cell');
+    const titleCell = cell('title-cell organized-title-cell');
     const layout = document.createElement('div'); layout.className = 'title-layout';
     const analysis = document.createElement('button'); analysis.className = 'row-analysis'; analysis.dataset.analysis = id;
     analysis.title = '查看单会话分析'; analysis.setAttribute('aria-label','查看单会话分析'); analysis.append(createElement(ChartNoAxesCombined));
     this.review.className = 'row-review'; this.review.dataset.review = id; this.review.title = '审阅回合'; this.review.setAttribute('aria-label', '审阅回合');
     this.review.append(createElement(FileDiff)); this.badge.className = 'review-badge'; this.review.append(this.badge);
-    layout.append(this.button, analysis, this.review); titleCell.append(layout);
+    layout.append(this.button, analysis, this.review);
+    const organization = document.createElement('div'); organization.className = 'row-organization';
+    this.favorite.className = 'row-favorite'; this.favorite.dataset.favorite = id; this.favorite.append(createElement(Star));
+    this.tags.className = 'row-tags'; this.tags.dataset.tags = id; this.tags.append(createElement(Tag), this.tagLabel);
+    organization.append(this.favorite, this.tags); titleCell.append(layout, organization);
     const breakdown = document.createElement('div'); breakdown.className = 'token-breakdown';
     // 单字标签收窄列宽，四项仍直接可见；数值与整列悬停继续提供精确明细。
     metrics.forEach(([key, label, meaning], i) => {
@@ -58,7 +65,16 @@ class SessionRow {
     cells.forEach((cell, index) => { cell.dataset.column = columns[index].id; });
     this.element.append(...cells);
   }
-  update(session: Session, supported: boolean, selected: boolean): void {
+  update(session: Session, supported: boolean, selected: boolean, pending: boolean): void {
+    const favorite = !!session.organization?.favorite, tags = session.organization?.tags ?? [];
+    attribute(this.favorite, 'aria-pressed', String(favorite));
+    attribute(this.favorite, 'aria-label', `${favorite ? '取消收藏' : '收藏会话'}：${session.title}`);
+    this.favorite.title = favorite ? '取消收藏' : '收藏会话';
+    attribute(this.favorite, 'aria-disabled', String(pending)); attribute(this.tags, 'aria-disabled', String(pending));
+    text(this.tagLabel, tags.length ? tags.join(' · ') : '添加标签');
+    attribute(this.tags, 'aria-label', tags.length ? `编辑标签：${session.title}；当前标签：${tags.join('、')}；可添加或移除` : `添加标签：${session.title}`);
+    attribute(this.tags, 'title', tags.length ? `标签：${tags.join('、')}；点击添加／移除` : '添加会话标签');
+    this.tags.classList.toggle('has-tags', tags.length > 0);
     this.element.classList.toggle('selected', selected);
     text(this.badge, session.workflow?.pending ? String(session.workflow.pending) : '');
     this.review.classList.toggle('has-pending', !!session.workflow?.pending);
@@ -93,9 +109,13 @@ class SessionRow {
 
 export class SessionTable {
   private rows = new Map<string, SessionRow>();
-  constructor(private body: HTMLElement, private scroller: HTMLElement) {}
-  update(sessions: Session[], supported: boolean, selectedId?: string): void {
+  constructor(private body: HTMLElement, private scroller: HTMLElement, private fallbackFocus?: HTMLElement) {}
+  update(sessions: Session[], supported: boolean, selectedId?: string, pending: string[] = []): void {
     const focused = document.hasFocus() && this.body.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+    const oldRows = [...this.body.children] as HTMLElement[];
+    const focusedRow = focused?.closest<HTMLElement>('tr[data-id]');
+    const focusedIndex = focusedRow ? oldRows.indexOf(focusedRow) : -1;
+    const action = ['row-favorite', 'row-tags', 'row-review', 'row-analysis', 'session-title'].find(name => focused?.classList.contains(name)) ?? 'session-title';
     const { scrollTop, scrollLeft } = this.scroller;
     const visible = new Set(sessions.map(session => session.id));
     for (const [id, row] of this.rows) if (!visible.has(id)) { row.element.remove(); this.rows.delete(id); }
@@ -103,12 +123,22 @@ export class SessionTable {
     for (const session of sessions) {
       let row = this.rows.get(session.id);
       if (!row) { row = new SessionRow(session.id); this.rows.set(session.id, row); }
-      row.update(session, supported, selectedId === session.id);
+      row.update(session, supported, selectedId === session.id, pending.includes(session.id));
       if (row.element !== next) this.body.insertBefore(row.element, next);
       next = row.element.nextElementSibling;
     }
     // 重排可能让当前按钮失焦；仅在面板原本持有焦点时恢复，后台刷新不抢编辑器焦点。
     if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    else if (focused && !focused.isConnected) {
+      // 取消收藏／移除筛选标签后行可能消失；继续原位置的下一行，再退到上一行。
+      // 只转移键盘焦点，不发送会话切换或改变宿主选中／审阅目标。
+      const neighbors = [...oldRows.slice(focusedIndex + 1), ...oldRows.slice(0, focusedIndex).reverse()];
+      const row = neighbors.find(row => row.isConnected) ?? this.body.firstElementChild;
+      const equivalent = row?.querySelector<HTMLButtonElement>(`.${action}`);
+      const title = row?.querySelector<HTMLButtonElement>('.session-title');
+      const target = equivalent && !equivalent.disabled ? equivalent : title && !title.disabled ? title : this.fallbackFocus;
+      target?.focus({ preventScroll: true });
+    }
     this.scroller.scrollTop = scrollTop; this.scroller.scrollLeft = scrollLeft;
   }
 }

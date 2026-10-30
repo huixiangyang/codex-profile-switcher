@@ -4,6 +4,8 @@ import { LiveSessions } from '../live/channel';
 import type { LiveMode } from '../live/protocol';
 import { canonicalPath } from './catalog';
 import { ColumnLayoutSettings } from './columns';
+import { SessionOrganization, normalizeTag } from './organization';
+import { exportSessionsCsv } from './export';
 import { AnalysisPanel } from './analytics-panel';
 import type { AnalysisState, AnalysisSession, AnalysisChange } from './analytics';
 import { SessionWorkflow } from './workflow';
@@ -18,6 +20,9 @@ export class SessionPanel {
   private source = '';
   private workflow: SessionWorkflow;
   private columnLayout: ColumnLayoutSettings;
+  private organization: SessionOrganization;
+  private organizationPending = new Set<string>();
+  private exporting = false;
   private reviewer = new SessionReview();
   private reviewSelection?: { id: string; turn: TurnSummary };
   private focusAttention = 0;
@@ -40,6 +45,7 @@ export class SessionPanel {
   constructor(private context: vscode.ExtensionContext, private home: () => string, readonly live = new LiveSessions(), private liveMode: () => LiveMode = () => 'off') {
     this.workflow = new SessionWorkflow(context.workspaceState);
     this.columnLayout = new ColumnLayoutSettings(context.workspaceState);
+    this.organization = new SessionOrganization(context.workspaceState);
     this.view = new SessionView(context.extensionUri, () => this.snapshot(), action => this.run(action));
     this.analytics = new AnalysisPanel(context.extensionUri, id => this.analysisSnapshot(id), action => this.run(action, async () => {
       if (action.action === 'review' && this.reviewSelection?.id === action.id && this.reviewSelection.turn.id === action.turnId)
@@ -49,10 +55,10 @@ export class SessionPanel {
   private activeLive(): LiveSessions | undefined { return ['connected', 'disconnected'].includes(this.liveMode()) ? this.live : undefined; }
   private summaryRows(): Session[] {
     const live = this.activeLive();
-    return this.sessions.map(session => ({ ...session, turns: [], live: live?.entries.get(session.id), workflow: this.workflow.state(this.source, session, live) }));
+    return this.sessions.map(session => ({ ...session, turns: [], organization: this.organization.read(this.source, session.id), live: live?.entries.get(session.id), workflow: this.workflow.state(this.source, session, live) }));
   }
   private snapshot(): ViewState {
-    return { columnLayout: this.columnLayout.layout, columnLayoutAck: this.columnLayout.ack, liveMode: this.liveMode(), sourceAvailable: this.sourceAvailable, loading: this.loading, error: this.error ?? this.columnLayout.error ?? navigationError(),
+    return { scope: this.generation, organizationPending: this.sessions.filter(row => this.organizationPending.has(`${this.generation}:${row.id}`)).map(row => row.id), exporting: this.exporting, columnLayout: this.columnLayout.layout, columnLayoutAck: this.columnLayout.ack, liveMode: this.liveMode(), sourceAvailable: this.sourceAvailable, loading: this.loading, error: this.error ?? this.organization.error ?? this.columnLayout.error ?? navigationError(),
       supported: supportsNavigation(), selectedId: this.selectedId, focusAttention: this.focusAttention, review: this.reviewDetail(),
       sessions: this.summaryRows() };
   }
@@ -124,6 +130,7 @@ export class SessionPanel {
   private resetSource(): void {
     this.watcher?.dispose(); this.watcher = undefined;
     this.records?.dispose(); this.records = undefined;
+    this.source = '';
     this.sessions = []; this.selectedId = undefined; this.reviewSelection = undefined; this.sourceAvailable = false;
     this.analytics.resetSelection();
   }
@@ -133,7 +140,7 @@ export class SessionPanel {
   }
   private async run(action: PanelAction, after?: () => Promise<void>): Promise<void> {
     if (this.disposed) return;
-    try { await this.action(action); if (!this.disposed) await after?.(); } catch (error) { void vscode.window.showErrorMessage(`Codex 会话：${(error as Error).message}`); }
+    try { await this.action(action); if (!this.disposed) await after?.(); } catch (error) { void vscode.window.showErrorMessage(`Codex 会话：${(error as Error).message}`); if (!this.disposed) this.update(); }
   }
   private scheduleRefresh(): void {
     if (this.timer || this.disposed) return;
@@ -156,14 +163,17 @@ export class SessionPanel {
       this.update(); return;
     }
     this.loading = true; this.error = undefined; this.update();
-    const generation = this.generation;
+    let generation = this.generation;
     try {
       const roots = (vscode.workspace.workspaceFolders ?? []).filter(folder => folder.uri.scheme === 'file').map(folder => folder.uri.fsPath);
       if (!roots.length) { this.sessions = []; this.sourceAvailable = false; this.error = '请先打开文件夹或工作区。'; return; }
       const home = this.home();
       if (!this.records || this.records.home !== home) {
-        this.resetSource(); this.source = await canonicalPath(home);
+        if (this.records) generation = ++this.generation;
+        this.resetSource();
+        const source = await canonicalPath(home);
         if (this.disposed || generation !== this.generation) return;
+        this.source = source;
         this.records = new LocalSessionRecords(home);
         this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(home), '{sessions/**/*.jsonl,session_index.jsonl}'));
         this.watcher.onDidCreate(() => this.scheduleRefresh());
@@ -194,6 +204,30 @@ export class SessionPanel {
     }
     else if (message.action === 'configureLive') await vscode.commands.executeCommand('codexSessions.configureLive');
     else if (message.action === 'layout') { await this.columnLayout.save(message.layout, message.requestId); if (!this.disposed) this.update(); }
+    else if (message.action === 'favorite' || message.action === 'tags') {
+      this.validateScope(message.scope);
+      if (!this.sessions.some(row => row.id === message.id)) throw new Error('会话不在当前工作区，请刷新列表。');
+      const key = `${message.scope}:${message.id}`, source = this.source;
+      if (this.organizationPending.has(key)) return;
+      this.organizationPending.add(key); this.update();
+      try {
+        if (message.action === 'favorite') await this.organization.update(source, message.id, { favorite: message.favorite });
+        else await this.editTags(source, message.scope, message.id);
+      } finally { this.organizationPending.delete(key); if (!this.disposed) this.update(); }
+    }
+    else if (message.action === 'export') {
+      this.validateScope(message.scope);
+      if (this.exporting) return;
+      const byId = new Map(this.summaryRows().map(row => [row.id, row]));
+      if (!message.ids.length || new Set(message.ids).size !== message.ids.length || message.ids.some(id => !byId.has(id)))
+        throw new Error('导出范围已变化，请重新筛选后导出。');
+      // 只从宿主已校验的当前来源复制数据；后续刷新和弹窗不能改变这次导出的数值。
+      const rows = structuredClone(message.ids.map(id => byId.get(id)!)), source = this.source;
+      this.exporting = true; this.update();
+      try { await exportSessionsCsv(rows, () => !this.disposed && message.scope === this.generation && source === this.source); }
+      catch (error) { throw new Error(`CSV 导出失败：${(error as Error).message} 请检查保存位置后重新导出。`); }
+      finally { this.exporting = false; if (!this.disposed) this.update(); }
+    }
     else if (message.action === 'refresh') await this.refresh();
     else if (message.action === 'back') { this.reviewSelection = undefined; this.update(); }
     else if (message.action === 'next') {
@@ -248,11 +282,32 @@ export class SessionPanel {
       await this.navigation;
     }
   }
+  private validateScope(scope: number): void {
+    if (scope !== this.generation || !this.source || !this.sourceAvailable) throw new Error('会话来源已变化，请等待列表刷新后重试。');
+  }
+  private async editTags(source: string, scope: number, id: string): Promise<void> {
+    const current = this.organization.read(source, id).tags;
+    const tags = [...new Set(this.sessions.flatMap(row => this.organization.read(source, row.id).tags))].sort((a, b) => a.localeCompare(b));
+    const items = [
+      { label: '$(add) 新建标签…', description: '仅保存在本扩展中', tag: undefined as string | undefined },
+      ...tags.map(tag => ({ label: tag, description: current.includes(tag) ? '已添加 · 选择移除' : '选择添加', tag }))
+    ];
+    const picked = await vscode.window.showQuickPick(items, { title: '会话标签', placeHolder: '选择已有标签进行添加／移除，或新建标签', matchOnDescription: true });
+    if (!picked || this.disposed || scope !== this.generation || source !== this.source || !this.sessions.some(row => row.id === id)) return;
+    let tag = picked.tag;
+    if (tag === undefined) {
+      const value = await vscode.window.showInputBox({ title: '新建会话标签', prompt: '最多 32 个字符，每个会话最多 10 个标签；仅存于本扩展', placeHolder: '例如：待跟进',
+        validateInput: value => { try { normalizeTag(value); return undefined; } catch (error) { return (error as Error).message; } } });
+      if (value === undefined || this.disposed || scope !== this.generation || source !== this.source || !this.sessions.some(row => row.id === id)) return;
+      tag = normalizeTag(value);
+      await this.organization.update(source, id, { addTag: tag });
+    } else await this.organization.update(source, id, current.includes(tag) ? { removeTag: tag } : { addTag: tag });
+  }
   async dispose(): Promise<void> {
     this.disposed = true; this.generation++;
     clearTimeout(this.timer); clearInterval(this.poll); this.resetSource();
     await this.refreshTask;
-    await this.live.dispose(); this.reviewer.dispose(); await this.workflow.flush(); await this.columnLayout.flush();
+    await this.live.dispose(); this.reviewer.dispose(); await this.workflow.flush(); await this.columnLayout.flush(); await this.organization.flush();
     this.analytics.dispose();
   }
 }

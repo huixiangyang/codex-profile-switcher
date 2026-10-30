@@ -23,6 +23,7 @@ export const commands = {
   async executeCommand() {}
 };
 export const workspace = {
+  fs: { async writeFile() { throw new Error("测试需要显式提供文件写入替身"); } },
   workspaceFolders: [{ uri: Uri.file('/test/project') }],
   isTrusted: true,
   workspaceFile: undefined,
@@ -43,6 +44,8 @@ export const window = {
   createWebviewPanel() { throw new Error('测试需要显式提供 WebviewPanel 替身'); },
   registerWebviewViewProvider() { return { dispose() {} }; },
   createStatusBarItem: () => state.status,
+  async showSaveDialog() { return undefined; },
+  async showInputBox() { return undefined; },
   async showQuickPick(items: { label: string }[]) { return items.find(x => x.label === state.choice); },
   async showInformationMessage(message: string) { state.notifications.push(message); },
   async showErrorMessage(message: string) { state.notifications.push(message); },

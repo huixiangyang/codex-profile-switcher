@@ -1,25 +1,30 @@
-import { createElement, Search, RefreshCw, ListTodo, Files, Radio, CircleAlert, Clock3, Inbox, ChartNoAxesCombined } from 'lucide';
+import { createElement, Search, RefreshCw, ListTodo, Files, Radio, CircleAlert, Clock3, Inbox, ChartNoAxesCombined, Star, Download } from 'lucide';
 import { liveModeLabels } from '../live/protocol';
 import { ColumnLayout } from './column-layout';
 import { defaultColumnLayout } from './columns';
 import { ReviewView } from './review-view';
 import { SessionTable } from './table';
+import { matchesSessionStatus, matchesSessionFilters, favoritesFirst, type SessionFilter } from './organization';
 import type { ViewMessage, ViewState, Session } from './types';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; getState(): { query?: string } | undefined; setState(state: unknown): void };
 const api = acquireVsCodeApi();
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 let query = api.getState()?.query ?? '';
-type Filter = 'all' | 'active' | 'attention' | 'review';
+type Filter = SessionFilter;
 let filter: Filter = 'all';
+let onlyFavorites = false, tag = '', scope: number | undefined;
+let exportIds: string[] = [];
+const pendingOrganization = new Set<string>();
+const acknowledgedOrganization = new Set<string>();
 let ordered: string[] = [], focusAttention = 0, wasReview = false, listScroll = 0, listScrollLeft = 0;
 let sourceMode = '';
 const filterLabels: Record<Filter, string> = { all: '全部', active: '进行中', attention: '待处理', review: '待审阅' };
-const matches = (session: ViewState['sessions'][number], value: Filter) => value === 'all' || (value === 'active' ? session.workflow?.active : value === 'attention' ? session.workflow?.attention : (session.workflow?.pending ?? 0) > 0);
+const matches = matchesSessionStatus;
 let state: ViewState = { columnLayout: defaultColumnLayout(), liveMode: 'off', sourceAvailable: false, loading: false, supported: true, sessions: [] };
 const columnLayout = new ColumnLayout(send);
 const detail = new ReviewView($('review'), send);
-const table = new SessionTable($('sessions'), document.querySelector('main')!);
+const table = new SessionTable($('sessions'), document.querySelector('main')!, $('search'));
 function send(message: ViewMessage): void { api.postMessage(message); }
 for (const [value, label] of Object.entries(filterLabels)) {
   const button = document.createElement('button'); button.dataset.filter = value;
@@ -30,6 +35,19 @@ for (const [value, label] of Object.entries(filterLabels)) {
   const option = document.createElement('option'); option.value = value; option.textContent = label; $('filter-select').append(option);
 }
 $('filter-select').addEventListener('change', event => { filter = (event.target as HTMLSelectElement).value as Filter; ordered = []; render(); });
+$('favorites-icon').append(createElement(Star));
+$('favorites-only').addEventListener('click', () => { onlyFavorites = !onlyFavorites; render(); });
+$('tag-filter').addEventListener('change', event => { tag = (event.target as HTMLSelectElement).value; render(); });
+$('clear-filters').addEventListener('click', () => {
+  filter = 'all'; onlyFavorites = false; tag = ''; query = ''; ordered = [];
+  api.setState({ query }); $<HTMLInputElement>('search').value = ''; render(); $('search').focus();
+});
+$('export').append(createElement(Download));
+$('export').addEventListener('click', () => {
+  if (!exportIds.length || state.exporting || $('export').getAttribute('aria-disabled') === 'true') return;
+  $('export').setAttribute('aria-disabled', 'true');
+  send({ action: 'export', scope: state.scope ?? 0, ids: [...exportIds] });
+});
 $('next').append(createElement(ListTodo)); $('next').addEventListener('click', () => send({ action: 'next' }));
 $('analytics').append(createElement(ChartNoAxesCombined)); $('analytics').addEventListener('click', () => send({action:'analytics'}));
 $('empty-icon').append(createElement(Inbox));
@@ -39,6 +57,15 @@ $('search').addEventListener('input', event => { query = (event.target as HTMLIn
 $('source').addEventListener('click', () => send({ action: 'configureLive' }));
 $('refresh').addEventListener('click', () => send({ action: 'refresh' }));
 $('sessions').addEventListener('click', event => {
+  const organization = (event.target as Element).closest<HTMLButtonElement>('[data-favorite], [data-tags]');
+  if (organization) {
+    event.stopPropagation();
+    const id = organization.dataset.favorite ?? organization.dataset.tags!, row = state.sessions.find(row => row.id === id);
+    if (!row || organization.getAttribute('aria-disabled') === 'true' || pendingOrganization.has(id)) return;
+    pendingOrganization.add(id); organization.setAttribute('aria-disabled', 'true');
+    send(organization.dataset.favorite ? { action: 'favorite', scope: state.scope ?? 0, id, favorite: !row.organization?.favorite } : { action: 'tags', scope: state.scope ?? 0, id });
+    return;
+  }
   const analysis = (event.target as Element).closest<HTMLElement>('[data-analysis]');
   if (analysis?.dataset.analysis) { event.stopPropagation(); send({action:'analytics',id:analysis.dataset.analysis}); return; }
   const review = (event.target as Element).closest<HTMLElement>('[data-review]');
@@ -53,10 +80,11 @@ $('sessions').addEventListener('keydown', event => {
   if (current >= 0) { event.preventDefault(); buttons[Math.max(0, Math.min(buttons.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)))].focus(); }
 });
 function render(): void {
+  if (scope !== state.scope) { scope = state.scope; ordered = []; tag = ''; onlyFavorites = false; pendingOrganization.clear(); acknowledgedOrganization.clear(); }
   columnLayout.receive(state.columnLayout, state.columnLayoutAck);
   if (state.review) columnLayout.closeMenu();
   if ((state.focusAttention ?? 0) !== focusAttention) {
-    focusAttention = state.focusAttention ?? 0; filter = 'attention'; query = ''; api.setState({ query }); $<HTMLInputElement>('search').value = ''; ordered = [];
+    focusAttention = state.focusAttention ?? 0; filter = 'attention'; onlyFavorites = false; tag = ''; query = ''; api.setState({ query }); $<HTMLInputElement>('search').value = ''; ordered = [];
   }
   for (const value of Object.keys(filterLabels) as Filter[]) {
     const count = state.sessions.filter(session => matches(session, value)).length;
@@ -81,8 +109,23 @@ function render(): void {
     ordered.splice(position < 0 ? ordered.length : position, 0, item.id);
   }
   const positions = new Map(ordered.map((id, index) => [id, index]));
-  const rows = visible.filter(item => `${item.title} ${item.cwdLabel} ${item.cwd}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).sort((a,b)=>positions.get(a.id)!-positions.get(b.id)!);
-  $('count').hidden = !query; $('count').textContent = `匹配 ${rows.length} 条`;
+  const tags = [...new Set(state.sessions.flatMap(row => row.organization?.tags ?? []))].sort((a, b) => a.localeCompare(b));
+  // 保留当前标签即使暂时没有会话匹配，避免刷新静默扩大导出范围。
+  if (tag && !tags.includes(tag)) tags.push(tag);
+  const select = $<HTMLSelectElement>('tag-filter');
+  if (JSON.stringify([...select.options].map(option => option.value)) !== JSON.stringify(['', ...tags])) {
+    select.replaceChildren(...['', ...tags].map(value => { const option = document.createElement('option'); option.value = value; option.textContent = value || '全部标签'; return option; }));
+  }
+  select.value = tag;
+  $('favorites-only').setAttribute('aria-pressed', String(onlyFavorites));
+  $('clear-filters').hidden = filter === 'all' && !query && !onlyFavorites && !tag;
+  const rows = favoritesFirst(visible.filter(item => matchesSessionFilters(item, { status: filter, query, onlyFavorites, tag })).sort((a,b)=>positions.get(a.id)!-positions.get(b.id)!), filter);
+  exportIds = rows.map(row => row.id);
+  $('export').setAttribute('aria-disabled', String(!rows.length || !!state.exporting));
+  const exportLabel = state.exporting ? '正在准备 CSV 导出…' : rows.length ? `导出当前筛选的 ${rows.length} 个会话为 CSV` : '没有可导出的会话；请调整或清除筛选';
+  $('export').title = exportLabel; $('export').setAttribute('aria-label', exportLabel);
+  $('organization-hint').textContent = filter === 'attention' ? '待处理仍按原优先级排序' : '收藏优先 · 标签仅存于本扩展';
+  $('count').hidden = !query && !onlyFavorites && !tag; $('count').textContent = `匹配 ${rows.length} 条`;
   const mode = state.liveMode ?? 'off';
   $('source-label').textContent = mode === 'off' && !state.sourceAvailable ? '未发现记录' : liveModeLabels[mode];
   $('source').dataset.mode = mode;
@@ -99,12 +142,17 @@ function render(): void {
   if (notice.textContent !== message) notice.textContent = message;
   const main = document.querySelector('main')!;
   if (state.review && !wasReview) { listScroll = main.scrollTop; listScrollLeft = main.scrollLeft; }
-  $('list').hidden = !!state.review; $('list-header').hidden = !!state.review;
+  $('list').hidden = !!state.review; $('list-header').hidden = !!state.review; $('organization-tools').hidden = !!state.review;
   detail.update(state.review);
-  if (!state.review) { table.update(rows, state.supported, state.selectedId); if (wasReview) { main.scrollTop = listScroll; main.scrollLeft = listScrollLeft; } }
+  if (!state.review) { table.update(rows, state.supported, state.selectedId, [...new Set([...(state.organizationPending ?? []), ...pendingOrganization])]); if (wasReview) { main.scrollTop = listScroll; main.scrollLeft = listScrollLeft; } }
   wasReview = !!state.review;
   $('empty').hidden = rows.length > 0;
-  $('empty-label').textContent = state.loading ? '正在读取会话…' : query ? '没有匹配的会话' : filter === 'attention' && mode !== 'connected' ? '实时等待状态不可用；当前没有其他已确认的待处理项。' : filter === 'review' ? '没有待审阅的新回合' : filter === 'active' && mode !== 'connected' ? '开启实时监听后可查看进行中的会话' : '暂无匹配会话';
+  $('empty-label').textContent = state.loading ? '正在读取会话…' : query || onlyFavorites || tag ? '没有符合当前筛选条件的会话；可清除筛选后重试。' : filter === 'attention' && mode !== 'connected' ? '实时等待状态不可用；当前没有其他已确认的待处理项。' : filter === 'review' ? '没有待审阅的新回合' : filter === 'active' && mode !== 'connected' ? '开启实时监听后可查看进行中的会话' : '暂无匹配会话';
 }
-window.addEventListener('message', event => { if (event.data?.type === 'state') { state = event.data.state; render(); } });
+window.addEventListener('message', event => { if (event.data?.type === 'state') { state = event.data.state;
+  for (const id of pendingOrganization) {
+    if (state.organizationPending?.includes(id)) acknowledgedOrganization.add(id);
+    else if (acknowledgedOrganization.has(id) || !state.sessions.some(row => row.id === id)) { pendingOrganization.delete(id); acknowledgedOrganization.delete(id); }
+  }
+  render(); } });
 send({ action: 'ready' });
