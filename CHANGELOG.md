@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Profile assistant (preview)
+
+- Add a native Profile draft wizard with coding/review/custom templates, validated names, metadata-only model/provider choices and explicit reasoning effort. Open an unsaved TOML editor; do not write configuration/credentials, create directories or switch automatically.
+- Add an opt-in safe override preview and expose create/preview actions in the switch picker, including its empty state. Preview only allowlisted metadata and recognized overrides; hide other values without dropping them from actual profile application. Normal switching retains its existing flow.
+- Require trusted local workspaces for the assistant and preview. Keep credentials, raw TOML, parser error values and full command arguments out of their prompts. Add synthetic unit/host-stub coverage and bilingual usage documentation; native extension-host acceptance remains separate.
+
 ## Unreleased — Session organization and CSV (preview)
 
 - Add per-session favorites and lightweight custom tags, stored only in the extension's workspace metadata and isolated by Codex source/session ID. Serialize writes, preserve saved values on failure and reject stale source actions; leave official records untouched.

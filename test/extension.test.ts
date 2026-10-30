@@ -30,6 +30,18 @@ test('工作区选择独立保存、重载恢复、默认隔离，只有接管�
     workspaceState: { get: (key: string) => values.get(key), update: async (key: string, value: unknown) => { values.set(key, value); } }
   }) as unknown as ExtensionContext;
   await activate(context(projectA));
+  assert.ok(state.commands.has('codexProfiles.create'));
+  assert.ok(state.commands.has('codexProfiles.preview'));
+  // Empty-list discoverability and cancellation must not take over the launcher.
+  state.values.set('codexProfiles.codexHome', path.join(dir, 'missing-home'));
+  state.quickPickHandler = async items => items.find(item => item.action === 'create');
+  await state.commands.get('codexProfiles.switch')!();
+  assert.equal(state.inputs.length, 1);
+  assert.equal(state.documents.length, 0);
+  assert.ok(state.picks[0].items.some(item => item.action === 'preview'));
+  await assert.rejects(fs.stat(path.join(dir, 'missing-home')), { code: 'ENOENT' });
+  state.quickPickHandler = undefined;
+  state.values.set('codexProfiles.codexHome', home);
   assert.equal(state.updates.length, 0);
   state.choice = 'broken'; await state.commands.get('codexProfiles.switch')!();
   assert.equal(state.updates.length, 0);

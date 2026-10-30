@@ -144,11 +144,23 @@ model_reasoning_effort = "high"
 
 若要切换已配置的 provider，可加入 `model_provider = "your-provider-id"`。Provider 定义和凭据继续由用户级配置或凭据存储管理。名称只支持字母、数字、短横线和下划线。菜单只展示名称、provider 和模型；无效 TOML 会阻止切换，并提供打开文件入口。缺失的配置目录会显示空列表，不会新建或覆盖用户配置。可直接复制仓库中的 [示例](examples/review.config.toml.example)。
 
+### 配置助手与安全预览
+
+在切换菜单中选择 **创建 Profile 草稿**，或执行同名命令。原生向导依次选择名称、编码／审阅／自定义模板、可选模型与 Provider、推理强度，然后打开一个**尚未保存的 TOML 文档**。编码模板默认 `medium`，审阅模板默认 `high`，自定义模板默认继承；模板不会改变批准策略或沙箱权限。
+
+模型与 Provider 选项仅来自已有配置的安全元数据，不内置模型清单，不复制 Provider 定义、端点或凭据。取消任一步不会保存配置。请自行审阅草稿，再用 **另存为** 保存到配置目录下的 `<名称>.config.toml`，随后重新打开切换菜单；助手不会创建目录、覆盖文件或自动切换。
+
+选择 **预览 Profile 覆盖项** 可先检查默认配置或某个 Profile。预览只显示允许的模型、Provider、推理强度和少量已知覆盖项；其他字段隐藏或仅计数。它不是运行时有效配置，也不显示原始 `-c` 参数、完整 TOML 或凭据。未展示的合法配置仍按原方式应用，不会被丢弃。日常切换不会增加强制预览确认框。
+
+配置助手与预览仅在受信任的本机工作区可用；不绕过工作区信任，也不读取登录或会话记录。更多命令、安全边界与人工验收步骤见 [Profile 配置助手](docs/PROFILES.md)。
+
 ### 命令
 
 | 命令 | 用途 |
 | --- | --- |
-| Codex Profiles: 切换 Profile | 列出默认配置和发现的 profiles |
+| Codex Profiles: 切换 Profile | 列出默认配置和发现的 profiles，并提供创建／预览入口 |
+| Codex Profiles: 创建 Profile 草稿 | 向导生成未保存的 TOML 草稿，由你决定保存位置 |
+| Codex Profiles: 预览 Profile 覆盖项 | 查看允许展示的覆盖项，不切换、不保存 |
 | Codex Profiles: 打开当前配置文件 | 编辑所选 profile；默认模式打开 config.toml |
 | Codex Profiles: 刷新 Profiles | 检查配置目录并刷新状态栏；切换菜单每次都会重新扫描 |
 | Codex Profiles: 当前窗口恢复默认 Profile | 仅当前窗口使用 config.toml，保留其他窗口的选择 |
@@ -216,7 +228,7 @@ node scripts/smoke.mjs
 
 该检查生成临时配置，先用单个后端初始化临时状态库，再使用 VS Code 内置运行时启动两个独立宿主及真实 Codex 后端，通过 `initialize` / `config/read` 核对各自 provider、模型和推理强度，再验证一个窗口恢复默认时另一个保持原配置。不读取个人 profile，不修改当前 VS Code 设置，也不发送模型请求。详细验收记录见 [VERIFICATION.md](VERIFICATION.md)。
 
-VSIX 输出到 `artifacts/`。必要测试覆盖 Profile、启动与窗口流程、修复和恢复、本地记录统计、实时透传与回合状态关联、逐轮审阅、列布局持久化、窗口绑定导航，以及分析汇总、编辑区标签复用和数据源隔离；收藏／标签与 CSV 的测试还覆盖持久化、组合筛选、失败恢复、导出字段和取消。测试不发送模型请求，API 替身与合成浏览器夹具不能代替真实 VS Code 扩展宿主验收。`node scripts/verify-sessions-ui.mjs` 验证底部面板，`node scripts/preview-analytics.mjs` 生成分析页的隔离交互夹具。
+VSIX 输出到 `artifacts/`。必要测试覆盖 Profile、启动与窗口流程、修复和恢复、本地记录统计、实时透传与回合状态关联、逐轮审阅、列布局持久化、窗口绑定导航，以及分析汇总、编辑区标签复用和数据源隔离；收藏／标签与 CSV 的测试还覆盖持久化、组合筛选、失败恢复、导出字段和取消。Profile 助手测试覆盖模板、名称校验、元数据安全、逐步取消、未保存文档、来源／信任变化与安全预览。测试不发送模型请求，API 替身与合成浏览器夹具不能代替真实 VS Code 扩展宿主验收。`node scripts/verify-sessions-ui.mjs` 验证底部面板，`node scripts/preview-analytics.mjs` 生成分析页的隔离交互夹具。
 
 对已安装且未经修改的官方扩展做离线副本验证：
 

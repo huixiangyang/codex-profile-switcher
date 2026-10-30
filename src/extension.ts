@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createLauncher, binaryRelativePath, launcherPath, atomicWrite } from './launcher';
 import { listProfiles, resolveHome, readProfile, profileArgs, Profile } from './profiles';
+import { createProfileDocument, showProfilePreview, profileDescription } from './profile-assistant-ui';
 import { serveWindow } from './window';
 import { repairCodex } from './repair';
 import { SessionPanel } from './sessions/controller';
@@ -10,7 +11,7 @@ import { supportsNavigation, supportedCodexVersion } from './sessions/navigation
 import { LiveSessions } from './live/channel';
 import type { LiveMode } from './live/protocol';
 
-interface Choice extends vscode.QuickPickItem { profile?: Profile }
+interface Choice extends vscode.QuickPickItem { profile?: Profile; action?: 'create' | 'preview' }
 interface Selection { profile: string | null; codexHome: string }
 const selectionKey = 'windowSelection';
 const liveKey = 'sessionLiveEnabled';
@@ -138,14 +139,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     for (const profile of profiles) items.push({
       label: profile.name,
       description: managed() && profile.name === selection.profile && home() === selection.codexHome ? '当前选择' : undefined,
-      detail: profile.error || [profile.provider ? `Provider: ${profile.provider}` : '继承默认 provider', profile.model || '继承默认模型'].join(' · '),
-      profile
+      detail: profileDescription(profile),
+      profile: { name: profile.name, file: profile.file, error: profile.error }
     });
+    items.push(
+      { label: '$(add) 创建 Profile 草稿', detail: '原生向导 · 仅打开未保存的 TOML，不自动写入配置', action: 'create' },
+      { label: '$(inspect) 预览 Profile 覆盖项', detail: '只读安全摘要 · 不切换 Profile', action: 'preview' }
+    );
     const selected = await vscode.window.showQuickPick(items, {
-      title: '当前窗口：切换 Codex Profile', placeHolder: profiles.length ? '仅修改当前窗口，按工作区记住选择' : '未发现 profile，可先创建 <名称>.config.toml',
+      title: '当前窗口：切换 Codex Profile', placeHolder: profiles.length ? '仅修改当前窗口，按工作区记住选择' : '未发现 Profile；选择“创建 Profile 草稿”开始',
       matchOnDescription: true, matchOnDetail: true
     });
     if (!selected) return;
+    if (selected.action === 'create') { await createProfileDocument(home); return; }
+    if (selected.action === 'preview') { await showProfilePreview(home); return; }
     if (selected.profile?.error) {
       const action = await vscode.window.showErrorMessage(selected.profile.error, '打开配置文件');
       if (action) await vscode.window.showTextDocument(vscode.Uri.file(selected.profile.file));
@@ -190,6 +197,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   context.subscriptions.push(status,
     vscode.commands.registerCommand('codexProfiles.switch', run(choose)),
+    vscode.commands.registerCommand('codexProfiles.create', run(async () => { requireLocal(); await createProfileDocument(home); })),
+    vscode.commands.registerCommand('codexProfiles.preview', run(async () => { requireLocal(); await showProfilePreview(home); })),
     vscode.commands.registerCommand('codexSessions.configureLive', run(configureLive)),
     vscode.commands.registerCommand('codexProfiles.reset', run(() => setProfile())),
     vscode.commands.registerCommand('codexProfiles.disconnect', run(disconnect)),

@@ -54,6 +54,16 @@
         "category": "Codex Profiles"
       },
       {
+        "command": "codexProfiles.create",
+        "title": "创建 Profile 草稿",
+        "category": "Codex Profiles"
+      },
+      {
+        "command": "codexProfiles.preview",
+        "title": "预览 Profile 覆盖项",
+        "category": "Codex Profiles"
+      },
+      {
         "command": "codexProfiles.open",
         "title": "打开当前配置文件",
         "category": "Codex Profiles"
