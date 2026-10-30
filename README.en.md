@@ -31,11 +31,14 @@ Favorites, tags and CSV export below are not included in the `0.9.3` release pac
 
 - Toggle the row's star to favorite a session. Favorites appear first in ordinary lists; **the attention list and Next Attention keep their existing priorities**. Favoriting neither opens a conversation nor marks it reviewed.
 - Favorites-only and tag filters combine with the existing status filter and search; search also matches tags. The row's tag button opens a native VS Code picker to add/remove existing tags or create a new one. Tags are trimmed and Unicode NFC-normalized, with up to 32 characters per tag and 10 tags per session.
+- Clear Filters resets status, search, favorites-only and tags together. Changing sources resets only the source-specific favorite/tag filters, preserving status and search. If unfavoriting or removing a tag hides the focused row, keyboard focus moves to the same action on a neighboring row, or to search when the list becomes empty; this does not switch sessions or change the review target.
 - Metadata stays in this extension's local workspace state, keyed by Codex data source and session ID. **Codex records and project files are not modified.** Cross-workspace or multi-window synchronization is not provided. Failed saves keep the last successful values; stale actions cannot affect a newly selected source.
 
 ### Export CSV (development preview)
 
 Use the toolbar's CSV export button to export **the current filtered results**, not every workspace or all historical records. The host validates the sessions and captures a fixed snapshot before showing field selection and the save dialog. Background refreshes do not change that export. Canceling writes nothing; changing the workspace or data source cancels the old export.
+
+A successful save confirms the filename; deliberate cancellation stays quiet. A changed source explains why no export was saved, and a write failure reports the error and allows another export. Selected titles/tags are not automatically redacted; inspect their content before sharing.
 
 - Default columns contain row numbers, states, timestamps, favorite flags, latest cumulative session tokens, recorded turn counts/durations, and inherited/incomplete flags. Unknown values are blank; recorded zero remains `0`.
 - Session ID, title, tags, model and provider are individually opt-in fields and may identify sensitive work. Review the selected fields and exported file before sharing: titles or custom tags can themselves contain copied paths or private text. **Conversation bodies, patches and working directories are not export fields.**

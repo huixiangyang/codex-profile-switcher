@@ -94,3 +94,23 @@ test('CSV 仅接受当前宿主会话范围，快照固定，重复导出受控�
   await f.source('/fixture-b'); choose([]); await stale;
   assert.equal(writes,1); assert.equal(f.state.exporting,false);
 });
+
+test('CSV 取消或写入失败后可以重试，不误报成功，始终解除忙碌状态', async t => {
+  const f = await fixture(t); const information: string[] = [], errors: string[] = [];
+  let choice: unknown = undefined, destination: vscode.Uri | undefined, fail = true, writes = 0;
+  t.mock.method(vscode.window, 'showQuickPick', async () => choice);
+  t.mock.method(vscode.window, 'showSaveDialog', async () => destination);
+  t.mock.method(vscode.window, 'showInformationMessage', async (message: string) => {information.push(message);});
+  t.mock.method(vscode.window, 'showErrorMessage', async (message: string) => {errors.push(message);});
+  t.mock.method(vscode.workspace.fs, 'writeFile', async () => {writes++; if (fail) throw new Error('fixture disk full');});
+  const run = () => f.action({action:'export',scope:f.state.scope!,ids:['same']});
+  await run(); assert.equal(f.state.exporting,false); assert.equal(writes,0);
+  choice = []; await run(); assert.equal(f.state.exporting,false); assert.equal(writes,0);
+  assert.equal(information.length,0); assert.equal(errors.length,0);
+  destination = vscode.Uri.file('/exports/retry.csv');
+  await run(); assert.equal(f.state.exporting,false); assert.equal(writes,1);
+  assert.equal(information.length,0); assert.equal(errors.length,1); assert.ok(errors[0].includes('fixture disk full'));
+  fail = false;
+  await run(); assert.equal(f.state.exporting,false); assert.equal(writes,2);
+  assert.equal(information.length,1); assert.ok(information[0].includes('retry.csv'));
+});

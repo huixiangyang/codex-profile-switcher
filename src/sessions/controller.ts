@@ -225,6 +225,7 @@ export class SessionPanel {
       const rows = structuredClone(message.ids.map(id => byId.get(id)!)), source = this.source;
       this.exporting = true; this.update();
       try { await exportSessionsCsv(rows, () => !this.disposed && message.scope === this.generation && source === this.source); }
+      catch (error) { throw new Error(`CSV 导出失败：${(error as Error).message} 请检查保存位置后重新导出。`); }
       finally { this.exporting = false; if (!this.disposed) this.update(); }
     }
     else if (message.action === 'refresh') await this.refresh();

@@ -128,3 +128,33 @@ test('CSV write failures propagate to the controller without a false success', a
   t.mock.method(vscode.workspace.fs, 'writeFile', async () => { throw new Error('disk full'); });
   await assert.rejects(exportSessionsCsv([session('id')], () => true), /disk full/);
 });
+
+test('CSV feedback is quiet for empty/canceled actions, confirms only completed writes, and explains invalidated exports', async t => {
+  const notices: string[] = []; let fields: unknown = [], current = true, fail = false, writes = 0;
+  let destination: vscode.Uri | undefined = vscode.Uri.file('/exports/synthetic-results.csv');
+  t.mock.method(vscode.window, 'showInformationMessage', async (message: string) => { notices.push(message); });
+  t.mock.method(vscode.window, 'showQuickPick', async () => fields);
+  t.mock.method(vscode.window, 'showSaveDialog', async () => destination);
+  t.mock.method(vscode.workspace.fs, 'writeFile', async () => { writes++; if (fail) throw new Error('fixture write failure'); });
+  assert.equal(await exportSessionsCsv([], () => current), false);
+  fields = undefined;
+  assert.equal(await exportSessionsCsv([session('id')], () => current), false);
+  fields = []; destination = undefined;
+  assert.equal(await exportSessionsCsv([session('id')], () => current), false);
+  assert.equal(notices.length, 0); assert.equal(writes, 0);
+  destination = vscode.Uri.file('/exports/synthetic-results.csv'); fail = true;
+  await assert.rejects(exportSessionsCsv([session('id')], () => current), /fixture write failure/);
+  assert.equal(notices.length, 0);
+  fail = false;
+  assert.equal(await exportSessionsCsv([session('id')], () => current), true);
+  assert.equal(notices.length, 1); assert.ok(notices[0].includes('synthetic-results.csv'));
+  assert.ok(!notices[0].includes('/exports/')); assert.equal(writes, 2);
+  t.mock.method(vscode.window, 'showQuickPick', async () => { current = false; return []; });
+  assert.equal(await exportSessionsCsv([session('id')], () => current), false);
+  assert.equal(notices.length, 2); assert.equal(writes, 2);
+  current = true;
+  t.mock.method(vscode.window, 'showQuickPick', async () => []);
+  t.mock.method(vscode.window, 'showSaveDialog', async () => { current = false; return destination; });
+  assert.equal(await exportSessionsCsv([session('id')], () => current), false);
+  assert.equal(notices.length, 3); assert.equal(writes, 2);
+});
