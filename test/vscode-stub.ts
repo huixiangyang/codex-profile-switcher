@@ -1,6 +1,11 @@
+export interface StubPickItem { label: string; action?: string; value?: unknown; detail?: string; description?: string }
 export const state = {
   values: new Map<string, unknown>(), commands: new Map<string, () => Promise<void>>(),
   updates: [] as unknown[], notifications: [] as string[], choice: '', extensionPath: '', confirmDisconnect: false, confirmLive: '', extensionVersion: '26.51021.22027',
+  quickPickHandler: undefined as ((items: StubPickItem[], options: unknown) => Promise<StubPickItem | undefined>) | undefined,
+  inputBoxHandler: undefined as ((options: unknown) => Promise<string | undefined>) | undefined,
+  picks: [] as { items: StubPickItem[]; options: unknown }[], inputs: [] as unknown[],
+  documents: [] as { language?: string; content?: string }[], shownDocuments: [] as unknown[],
   status: { text: '', tooltip: '', name: '', command: '', accessibilityInformation: {}, show() {}, hide() {}, dispose() {} }
 };
 export const StatusBarAlignment = { Right: 1 };
@@ -34,7 +39,11 @@ export const workspace = {
     };
   },
   registerTextDocumentContentProvider() { return { dispose() {} }; },
-  async openTextDocument(uri: Uri) { return { uri }; },
+  async openTextDocument(input: Uri | { language?: string; content?: string }) {
+    if (input instanceof Uri) return { uri: input };
+    state.documents.push(input);
+    return { uri: Uri.from({ scheme: 'untitled', path: '/Untitled-1' }), isUntitled: true, languageId: input.language, getText: () => input.content ?? '' };
+  },
   createFileSystemWatcher() { return { onDidCreate() {}, onDidChange() {}, onDidDelete() {}, dispose() {} }; },
   onDidChangeConfiguration() { return { dispose() {} }; },
   onDidChangeWorkspaceFolders() { return { dispose() {} }; }
@@ -43,9 +52,13 @@ export const window = {
   createWebviewPanel() { throw new Error('测试需要显式提供 WebviewPanel 替身'); },
   registerWebviewViewProvider() { return { dispose() {} }; },
   createStatusBarItem: () => state.status,
-  async showQuickPick(items: { label: string }[]) { return items.find(x => x.label === state.choice); },
+  async showQuickPick(items: StubPickItem[], options?: unknown) {
+    state.picks.push({ items, options });
+    return state.quickPickHandler ? state.quickPickHandler(items, options) : items.find(x => x.label === state.choice);
+  },
+  async showInputBox(options?: unknown) { state.inputs.push(options); return state.inputBoxHandler?.(options); },
   async showInformationMessage(message: string) { state.notifications.push(message); },
   async showErrorMessage(message: string) { state.notifications.push(message); },
   async showWarningMessage(message: string) { state.notifications.push(message); return state.confirmLive || (state.confirmDisconnect ? '停用所有窗口' : undefined); },
-  async showTextDocument() {}
+  async showTextDocument(document?: unknown, options?: unknown) { state.shownDocuments.push({ document, options }); }
 };

@@ -84,6 +84,7 @@ An independent, MIT-licensed community project, not affiliated with OpenAI. This
 - Show the selected profile and pending reloads in the status bar.
 - Keep different projects on different profiles; resetting one window leaves others unchanged.
 - Search profiles by name, provider, or model using a native quick pick.
+- Create an unsaved Profile draft with a native wizard, and inspect a safe override preview before choosing to switch.
 - Open the selected config, reload the window, or restore the default launcher.
 - Use VS Code's built-in runtime; no separate Node.js or Python installation is needed by users.
 
@@ -121,11 +122,23 @@ To select an existing provider, add `model_provider = "your-provider-id"`. Keep 
 
 Profile names may contain letters, numbers, hyphens, and underscores. Invalid TOML prevents switching. Installing the extension does not take over an existing custom launcher; it is replaced only after you select a profile or explicitly confirm live monitoring.
 
+### Configuration assistant and safe preview
+
+Choose **创建 Profile 草稿** (Create Profile Draft) in the switch picker or Command Palette. The native wizard asks for a name, a coding/review/custom template, optional model and provider, and reasoning effort, then opens an **unsaved TOML document**. Coding defaults to `medium`, review to `high`, and custom to inheritance. Templates do not alter approval or sandbox permissions.
+
+Model and provider choices come only from safe metadata in existing configuration, not a hardcoded model catalog. Provider definitions, endpoints and credentials are never copied. Canceling any step does not save anything. Review the draft, then use **Save As** to save `<name>.config.toml` in the configured Codex directory and reopen the switch picker. The assistant does not create directories, overwrite files, or select the new profile automatically.
+
+Choose **预览 Profile 覆盖项** (Preview Profile Overrides) to inspect the default choice or an existing profile. The preview shows allowlisted model/provider/effort values and a small set of recognized overrides; other fields are hidden or counted only. It is not the runtime effective configuration and does not expose raw `-c` arguments, full TOML, or credentials. Valid settings omitted from the preview are still applied normally. Ordinary switching has no new mandatory preview dialog.
+
+The assistant and preview require a trusted local workspace. They do not bypass Workspace Trust or read authentication/session records. See [Profile assistant](docs/PROFILES.md#english-reference) for command IDs, safety boundaries and manual verification.
+
 ## Commands and settings
 
 | Command | Purpose |
 | --- | --- |
-| `Codex Profiles: 切换 Profile` | Select a profile or the default configuration |
+| `Codex Profiles: 切换 Profile` | Select a profile or the default configuration; access create/preview actions |
+| `Codex Profiles: 创建 Profile 草稿` | Generate an unsaved TOML draft; you choose where to save it |
+| `Codex Profiles: 预览 Profile 覆盖项` | Inspect allowed override details without switching or saving |
 | `Codex Profiles: 打开当前配置文件` | Open the selected profile, or `config.toml` in default mode |
 | `Codex Profiles: 刷新 Profiles` | Check the config directory and refresh the status bar |
 | `Codex Profiles: 当前窗口恢复默认 Profile` | Use `config.toml` in this window without changing other windows |

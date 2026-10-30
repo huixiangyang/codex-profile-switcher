@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add a native Profile draft wizard with coding/review/custom templates, validated names, metadata-only model/provider choices and explicit reasoning effort. Open an unsaved TOML editor; do not write configuration/credentials, create directories or switch automatically.
+- Add an opt-in safe override preview and expose create/preview actions in the switch picker, including its empty state. Preview only allowlisted metadata and recognized overrides; hide other values without dropping them from actual profile application. Normal switching retains its existing flow.
+- Require trusted local workspaces for the assistant and preview. Keep credentials, raw TOML, parser error values and full command arguments out of their prompts. Add synthetic unit/host-stub coverage and bilingual usage documentation; native extension-host acceptance remains separate.
+
 ## 0.9.3
 
 - Adapt navigation and live monitoring to official Codex `26.51021.22027`. Keep the existing window-bound `/local/<threadId>` sidebar route.
