@@ -43,12 +43,14 @@ node scripts/smoke.mjs
 
 ## 会话面板验收
 
-- `node scripts/verify-sessions-ui.mjs`：实际 Webview 代码加夹具数据，检查同列 Token 明细、会话轮次、缺失数值、搜索、点击、键盘操作、紧凑布局及明暗／高对比主题，并验证增量渲染的节点复用、重排、滚动及后台焦点。列布局检查涵盖拖动／键盘调整、显示选择、重建恢复、保存期间旧快照、保存失败回滚和审阅返回后的横向滚动；保存回执使用宿主消息夹具。需要本机 Chrome；截图位于 `artifacts/sessions-ui/`。
+- `node scripts/verify-sessions-ui.mjs`：实际 Webview 代码加夹具数据，检查同列 Token 明细、会话轮次、缺失数值、搜索、点击、键盘操作、紧凑布局及明暗／高对比主题，并验证增量渲染的节点复用、重排、滚动及后台焦点。列布局检查涵盖拖动／键盘调整、显示选择、重建恢复、保存期间旧快照、保存失败回滚和审阅返回后的横向滚动；保存回执使用宿主消息夹具。自动查找本机 Chrome／Chromium，也可通过 `CHROME_PATH` 指定路径或安装 Playwright Chromium；截图位于 `artifacts/sessions-ui/`。
 - `node scripts/verify-sessions.mjs`：macOS 隔离 VS Code 用户目录、CODEX_HOME 和三项目八会话，模型端点仅使用本地固定响应服务。不配置 `chatgpt.cliExecutable`，验证只读记录统计、底部面板、官方侧栏实际切换、切回，以及不新增编辑器标签、不改变代码选区及后台刷新后编辑器仍然激活。脚本只关闭自己的测试宿主，证据目录由 `VERIFY_ROOT` 输出。
 - 导航适配集中在 `src/sessions/navigation.ts`，核对新官方版本的 URI 路由后再更新 `supportedCodexVersion`；读取器独立核对落盘字段与单位。不修改官方安装文件，不为未知版本添加猜测性兼容。
 - `node scripts/verify-navigation.mjs`：读取已安装官方扩展的实际 URI handler、侧栏选择器与导航方法，在隔离 VM 中检查 A → B → A、当前版本侧栏目标及未加载侧栏的排队交付，并核对前端路由入口。它不启动 VS Code；不能代替原生窗口中的点击验收。更新适配版本时同步维护实时和补丁验证脚本的目标版本。
 
 ## 分析页验收
+
+- `npm run build && node scripts/verify-analytics-ui.mjs`：使用实际 Webview 代码与合成宿主消息，自动检查明暗／高对比主题、宽窄布局、筛选统计、排序、键盘联动、分页、连续刷新以及空／缺失／零值／分叉记录；需要 Chrome／Chromium（可用 `CHROME_PATH` 指定）。截图位于 `artifacts/analytics-ui/`，不代表真实 VS Code 扩展宿主已验收。
 
 - `npm run build && node scripts/preview-analytics.mjs` 生成 `artifacts/analytics-ui/`，包含实际 HTML / JS / CSS 和合成宿主消息。通过本地静态服务器查看 `light.html`、`dark.html`、`contrast.html`；`bottom-frame.html` 检查窄面板入口。
 - `?scenario=empty`、`fork`、`missing`、`zero`、`long`、`append` 分别提供空数据、分叉、会话移除、零用量、长历史和刷新追加场景。验证搜索／目录筛选的统计一致性、图表与明细联动、分页、保留选中回合和审阅目标。

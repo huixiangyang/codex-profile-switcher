@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
-import { chromium } from "playwright";
+import { launchUiBrowser } from "./ui-browser.mjs";
 import assert from "node:assert/strict";
 const root = process.cwd(),
   out = path.join(root, "artifacts/sessions-ui");
@@ -108,11 +108,7 @@ const data = {
   selectedId: "t0",
   sessions,
 };
-const browser = await chromium.launch({
-  headless: true,
-  executablePath:
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-});
+const browser = await launchUiBrowser();
 try {
   const page = await browser.newPage({
     viewport: { width: 1200, height: 360 },
