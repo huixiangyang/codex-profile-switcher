@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Session organization and CSV (preview)
+
+- Add per-session favorites and lightweight custom tags, stored only in the extension's workspace metadata and isolated by Codex source/session ID. Serialize writes, preserve saved values on failure and reject stale source actions; leave official records untouched.
+- Combine favorites-only and tag filters with existing status/search controls. Keep favorites first in ordinary lists without changing attention priority, next-attention navigation or per-turn review semantics.
+- Export the current filtered sessions from a host-validated fixed snapshot through native field selection and a save dialog. Keep identifying fields opt-in; omit conversation bodies, patches and working-directory fields. Cancellation writes nothing.
+- Preserve unknown versus zero, flag inherited/incomplete records and label usage as latest session totals rather than period consumption or cost. Escape CSV and neutralize formula-like text; do not add a cross-session total row.
+- Add focused persistence/filter/export coverage. Unit and synthetic-browser checks do not replace native VS Code interaction acceptance; this feature preview has not completed real extension-host acceptance.
+
 ## Unreleased — UI polish (preview)
 
 - Refine the bottom session panel with grouped filters, consistent input/action sizing, subtle row separators and a selected-row rail. Keep 44px rows, the 136px minimum Token column, saved layouts and all existing actions.

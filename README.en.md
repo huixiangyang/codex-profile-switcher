@@ -25,6 +25,23 @@ The panel uses a compact native workbench style, inheriting VS Code colors and f
 
 Keyboard users can Tab to a divider and use Left/Right to resize; Escape cancels an unfinished adjustment. See [the complete controls](docs/SESSIONS.md#调整列宽与显示).
 
+### Favorites and tags (development preview)
+
+Favorites, tags and CSV export below are not included in the `0.9.3` release package yet.
+
+- Toggle the row's star to favorite a session. Favorites appear first in ordinary lists; **the attention list and Next Attention keep their existing priorities**. Favoriting neither opens a conversation nor marks it reviewed.
+- Favorites-only and tag filters combine with the existing status filter and search; search also matches tags. The row's tag button opens a native VS Code picker to add/remove existing tags or create a new one. Tags are trimmed and Unicode NFC-normalized, with up to 32 characters per tag and 10 tags per session.
+- Metadata stays in this extension's local workspace state, keyed by Codex data source and session ID. **Codex records and project files are not modified.** Cross-workspace or multi-window synchronization is not provided. Failed saves keep the last successful values; stale actions cannot affect a newly selected source.
+
+### Export CSV (development preview)
+
+Use the toolbar's CSV export button to export **the current filtered results**, not every workspace or all historical records. The host validates the sessions and captures a fixed snapshot before showing field selection and the save dialog. Background refreshes do not change that export. Canceling writes nothing; changing the workspace or data source cancels the old export.
+
+- Default columns contain row numbers, states, timestamps, favorite flags, latest cumulative session tokens, recorded turn counts/durations, and inherited/incomplete flags. Unknown values are blank; recorded zero remains `0`.
+- Session ID, title, tags, model and provider are individually opt-in fields and may identify sensitive work. Review the selected fields and exported file before sharing: titles or custom tags can themselves contain copied paths or private text. **Conversation bodies, patches and working directories are not export fields.**
+- Usage is each session's latest cumulative snapshot, not consumption within a date range or a cost estimate. Forks remain separate rows with an inheritance flag. There is no aggregate-total row that could count inherited history as new consumption.
+- CSV uses standard quote escaping and CRLF line endings. Formula-like text receives a leading apostrophe so it is exported as text.
+
 ### Analyze sessions in an editor tab
 
 Click the chart button in the bottom panel, or run **Codex 会话: 打开会话分析**, to open **会话分析** in the active editor group. Reopening reuses the same tab.
@@ -193,7 +210,7 @@ npm test
 npm run package
 ```
 
-Development requires Node.js 22. Tests do not require personal Codex accounts or profiles. VSIX packages are written to `artifacts/`. See [contributing](CONTRIBUTING.md), [changelog](CHANGELOG.md), and [license](LICENSE).
+Development requires Node.js 22. Tests do not require personal Codex accounts or profiles. Favorites/tags and CSV tests cover persistence, composable filters, failure recovery, export fields and cancellation. API stubs and synthetic browser fixtures do not establish real VS Code extension-host acceptance. VSIX packages are written to `artifacts/`. See [contributing](CONTRIBUTING.md), [changelog](CHANGELOG.md), and [license](LICENSE).
 
 With the official extension installed, run `node scripts/smoke.mjs` to initialize a temporary state directory with one backend, then verify two independent host processes against real Codex backends. It checks each provider, model, and reasoning effort, then resets one host to defaults and verifies the other remains unchanged. No personal profile, model request, or VS Code settings change is required.
 
