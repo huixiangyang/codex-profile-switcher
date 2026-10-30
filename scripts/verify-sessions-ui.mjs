@@ -734,6 +734,7 @@ try {
   await page.locator('[data-tags="t0"]').focus(); await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.fixtureState.sessions.find(row => row.id === 't0').organization.tags.includes('版本'));
   assert.match(await page.locator('[data-tags="t0"]').textContent(), /交付.*版本/);
+  assert.match(await page.locator('[data-tags="t0"]').getAttribute('aria-label'), /交付.*版本/);
   assert.deepEqual(await page.evaluate(() => window.actions.filter(message => message.action === 'tags').at(-1)), {action:'tags',scope:7,id:'t0'});
   await page.evaluate(() => { window.cancelTags = true; window.nextTags = ['不得保存']; });
   await page.locator('[data-tags="t0"]').click();
@@ -742,6 +743,38 @@ try {
   assert.doesNotMatch(await page.locator('[data-tags="t0"]').textContent(), /不得保存/);
   assert.equal(await page.evaluate(() => window.actions.filter(message => message.action === 'switch').length), organizationSwitches);
   assert.equal(await page.evaluate(() => window.actions.filter(message => message.action === 'mark').length), organizationMarks);
+
+  // 行因当前收藏／标签筛选消失时，键盘留在相邻同类操作；最后一行消失回到搜索。
+  await page.evaluate(() => { window.focusFixture = structuredClone(window.fixtureState); window.cancelTags = false; });
+  await page.locator('#favorites-only').click();
+  await page.locator('[data-favorite="t4"]').focus(); await page.keyboard.press('Space');
+  await page.waitForFunction(() => !document.querySelector('[data-favorite="t4"]'));
+  assert.equal(await page.locator('[data-favorite="t6"]').evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => document.querySelector('#sessions').children.length === 0);
+  assert.equal(await page.getByRole('searchbox').evaluate(el => el === document.activeElement), true);
+  await page.locator('#clear-filters').click();
+  assert.equal(await page.locator('#clear-filters').isVisible(), false);
+  assert.equal(await page.getByRole('searchbox').evaluate(el => el === document.activeElement), true);
+  await page.evaluate(() => {
+    Object.assign(window.fixtureState, structuredClone(window.focusFixture));
+    window.nextTags = ['版本'];
+    window.dispatchEvent(new MessageEvent('message', {data:{type:'state',state:window.fixtureState}}));
+  });
+  await page.locator('#tag-filter').selectOption('交付');
+  const beforeTagRemoval = await rowIds(), tagIndex = beforeTagRemoval.indexOf('t0');
+  const tagNeighbor = beforeTagRemoval[tagIndex + 1] ?? beforeTagRemoval[tagIndex - 1];
+  await page.locator('[data-tags="t0"]').focus(); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('[data-tags="t0"]'));
+  assert.equal(await page.locator(`[data-tags="${tagNeighbor}"]`).evaluate(el => el === document.activeElement), true);
+  assert.equal(await page.evaluate(() => window.fixtureState.selectedId), await page.evaluate(() => window.focusFixture.selectedId));
+  assert.equal(await page.evaluate(() => window.actions.filter(message => message.action === 'switch').length), organizationSwitches);
+  assert.equal(await page.evaluate(() => window.actions.filter(message => message.action === 'mark').length), organizationMarks);
+  await page.locator('#clear-filters').click();
+  await page.evaluate(() => {
+    Object.assign(window.fixtureState, structuredClone(window.focusFixture));
+    window.dispatchEvent(new MessageEvent('message', {data:{type:'state',state:window.fixtureState}}));
+  });
 
   // 收藏、标签、搜索和状态取交集；导出消息只包含当前行 ID 与数据源代次。
   await page.locator('#favorites-only').click();
@@ -754,6 +787,16 @@ try {
   await page.getByRole('searchbox').fill('不存在的标签');
   assert.deepEqual(await rowIds(), []);
   assert.equal(await page.locator('#export').getAttribute('aria-disabled'), 'true');
+  const selectionBeforeClear = await page.evaluate(() => window.fixtureState.selectedId);
+  await page.locator('#clear-filters').click();
+  assert.equal(await page.locator('#favorites-only').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('#tag-filter').inputValue(), '');
+  assert.equal(await page.getByRole('searchbox').inputValue(), '');
+  assert.equal(await page.locator('[data-filter="all"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.getByRole('searchbox').evaluate(el => el === document.activeElement), true);
+  assert.equal(await page.locator('#sessions tr.selected').getAttribute('data-id'), selectionBeforeClear);
+  await page.locator('#favorites-only').click();
+  await page.locator('#tag-filter').selectOption('交付');
   await page.getByRole('searchbox').fill('版本');
   await page.locator('[data-filter="active"]').click();
   assert.deepEqual(await rowIds(), []);
@@ -777,6 +820,7 @@ try {
   });
   assert.equal(await page.locator('#tag-filter').inputValue(), '交付');
   assert.deepEqual(await rowIds(), []);
+  await page.locator('#favorites-only').click();
   await page.evaluate(() => {
     const data = window.fixtureState; data.scope = 8;
     for (const row of data.sessions) row.organization = {favorite:false,tags:[]};
@@ -784,6 +828,7 @@ try {
     window.dispatchEvent(new MessageEvent('message',{data:{type:'state',state:data}}));
   });
   assert.equal(await page.locator('#tag-filter').inputValue(), '');
+  assert.equal(await page.locator('#favorites-only').getAttribute('aria-pressed'), 'false');
   assert.equal((await rowIds())[0], 't7');
   assert.equal(await page.locator('#tag-filter option[value="交付"]').count(), 0);
   await page.locator('#export').click();

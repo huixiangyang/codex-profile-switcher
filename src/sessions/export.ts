@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
+import path from 'node:path';
 import type { Session } from './types';
 
 type Cell = string | number | boolean | null;
 export type CsvOptionalField = 'session_id' | 'title' | 'tags' | 'model' | 'provider';
 const optionalFields: { field: CsvOptionalField; label: string; description: string }[] = [
   { field: 'session_id', label: '会话 ID', description: '可用于关联原始会话' },
-  { field: 'title', label: '会话标题', description: '可能包含私人任务内容' },
-  { field: 'tags', label: '自定义标签', description: '可能包含项目或个人信息' },
+  { field: 'title', label: '会话标题', description: '可能包含私人内容或路径，不会自动脱敏' },
+  { field: 'tags', label: '自定义标签', description: '可能包含私人内容或路径，不会自动脱敏' },
   { field: 'model', label: '模型名称', description: '可能包含自定义名称' },
   { field: 'provider', label: 'Provider 名称', description: '可能包含自定义名称' }
 ];
@@ -70,19 +71,22 @@ export async function exportSessionsCsv(sessions: readonly Session[], isCurrent:
   const fields = await vscode.window.showQuickPick(optionalFields, {
     canPickMany: true,
     title: `导出 ${snapshot.rows.length} 个会话 · 选择额外字段`,
-    placeHolder: '不选直接回车：仅统计。所选标识可能含隐私；不导出工作目录、对话或补丁。',
+    placeHolder: '不选直接回车：仅统计。勾选文字可能含隐私或路径；无工作目录列、对话或补丁。',
     ignoreFocusOut: true
   });
-  if (!fields || !isCurrent()) return false;
+  if (!fields) return false;
+  if (!isCurrent()) { void vscode.window.showInformationMessage('会话来源已变化，未导出 CSV。请在当前列表重新导出。'); return false; }
   const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
   const uri = await vscode.window.showSaveDialog({
     title: `保存 ${snapshot.rows.length} 个会话的最新累计统计（非期间用量；分叉可能含继承历史）`,
     saveLabel: '导出 CSV', filters: { CSV: ['csv'] },
     defaultUri: folder ? vscode.Uri.joinPath(folder, `codex-sessions-${new Date().toISOString().slice(0, 10)}.csv`) : undefined
   });
-  if (!uri || !isCurrent()) return false;
+  if (!uri) return false;
+  if (!isCurrent()) { void vscode.window.showInformationMessage('会话来源已变化，未导出 CSV。请在当前列表重新导出。'); return false; }
   if (!/\.csv$/i.test(uri.path)) throw new Error('请选择 .csv 文件，避免覆盖其他格式的记录。');
   const csv = sessionsCsv(snapshot, fields.map(field => field.field));
   await vscode.workspace.fs.writeFile(uri, Buffer.from(csv, 'utf8'));
+  void vscode.window.showInformationMessage(`已导出 ${snapshot.rows.length} 个会话的 CSV：${path.basename(uri.path)}`);
   return true;
 }

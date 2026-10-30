@@ -71,8 +71,8 @@ class SessionRow {
     attribute(this.favorite, 'aria-label', `${favorite ? '取消收藏' : '收藏会话'}：${session.title}`);
     this.favorite.title = favorite ? '取消收藏' : '收藏会话';
     attribute(this.favorite, 'aria-disabled', String(pending)); attribute(this.tags, 'aria-disabled', String(pending));
-    text(this.tagLabel, tags.length ? tags.join(' · ') : '标签');
-    attribute(this.tags, 'aria-label', `编辑标签：${session.title}`);
+    text(this.tagLabel, tags.length ? tags.join(' · ') : '添加标签');
+    attribute(this.tags, 'aria-label', tags.length ? `编辑标签：${session.title}；当前标签：${tags.join('、')}；可添加或移除` : `添加标签：${session.title}`);
     attribute(this.tags, 'title', tags.length ? `标签：${tags.join('、')}；点击添加／移除` : '添加会话标签');
     this.tags.classList.toggle('has-tags', tags.length > 0);
     this.element.classList.toggle('selected', selected);
@@ -109,9 +109,13 @@ class SessionRow {
 
 export class SessionTable {
   private rows = new Map<string, SessionRow>();
-  constructor(private body: HTMLElement, private scroller: HTMLElement) {}
+  constructor(private body: HTMLElement, private scroller: HTMLElement, private fallbackFocus?: HTMLElement) {}
   update(sessions: Session[], supported: boolean, selectedId?: string, pending: string[] = []): void {
     const focused = document.hasFocus() && this.body.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+    const oldRows = [...this.body.children] as HTMLElement[];
+    const focusedRow = focused?.closest<HTMLElement>('tr[data-id]');
+    const focusedIndex = focusedRow ? oldRows.indexOf(focusedRow) : -1;
+    const action = ['row-favorite', 'row-tags', 'row-review', 'row-analysis', 'session-title'].find(name => focused?.classList.contains(name)) ?? 'session-title';
     const { scrollTop, scrollLeft } = this.scroller;
     const visible = new Set(sessions.map(session => session.id));
     for (const [id, row] of this.rows) if (!visible.has(id)) { row.element.remove(); this.rows.delete(id); }
@@ -125,6 +129,16 @@ export class SessionTable {
     }
     // 重排可能让当前按钮失焦；仅在面板原本持有焦点时恢复，后台刷新不抢编辑器焦点。
     if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
+    else if (focused && !focused.isConnected) {
+      // 取消收藏／移除筛选标签后行可能消失；继续原位置的下一行，再退到上一行。
+      // 只转移键盘焦点，不发送会话切换或改变宿主选中／审阅目标。
+      const neighbors = [...oldRows.slice(focusedIndex + 1), ...oldRows.slice(0, focusedIndex).reverse()];
+      const row = neighbors.find(row => row.isConnected) ?? this.body.firstElementChild;
+      const equivalent = row?.querySelector<HTMLButtonElement>(`.${action}`);
+      const title = row?.querySelector<HTMLButtonElement>('.session-title');
+      const target = equivalent && !equivalent.disabled ? equivalent : title && !title.disabled ? title : this.fallbackFocus;
+      target?.focus({ preventScroll: true });
+    }
     this.scroller.scrollTop = scrollTop; this.scroller.scrollLeft = scrollLeft;
   }
 }

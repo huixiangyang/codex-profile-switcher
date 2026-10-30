@@ -24,7 +24,7 @@ const matches = matchesSessionStatus;
 let state: ViewState = { columnLayout: defaultColumnLayout(), liveMode: 'off', sourceAvailable: false, loading: false, supported: true, sessions: [] };
 const columnLayout = new ColumnLayout(send);
 const detail = new ReviewView($('review'), send);
-const table = new SessionTable($('sessions'), document.querySelector('main')!);
+const table = new SessionTable($('sessions'), document.querySelector('main')!, $('search'));
 function send(message: ViewMessage): void { api.postMessage(message); }
 for (const [value, label] of Object.entries(filterLabels)) {
   const button = document.createElement('button'); button.dataset.filter = value;
@@ -38,6 +38,10 @@ $('filter-select').addEventListener('change', event => { filter = (event.target 
 $('favorites-icon').append(createElement(Star));
 $('favorites-only').addEventListener('click', () => { onlyFavorites = !onlyFavorites; render(); });
 $('tag-filter').addEventListener('change', event => { tag = (event.target as HTMLSelectElement).value; render(); });
+$('clear-filters').addEventListener('click', () => {
+  filter = 'all'; onlyFavorites = false; tag = ''; query = ''; ordered = [];
+  api.setState({ query }); $<HTMLInputElement>('search').value = ''; render(); $('search').focus();
+});
 $('export').append(createElement(Download));
 $('export').addEventListener('click', () => {
   if (!exportIds.length || state.exporting || $('export').getAttribute('aria-disabled') === 'true') return;
@@ -76,7 +80,7 @@ $('sessions').addEventListener('keydown', event => {
   if (current >= 0) { event.preventDefault(); buttons[Math.max(0, Math.min(buttons.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)))].focus(); }
 });
 function render(): void {
-  if (scope !== state.scope) { scope = state.scope; ordered = []; tag = ''; pendingOrganization.clear(); acknowledgedOrganization.clear(); }
+  if (scope !== state.scope) { scope = state.scope; ordered = []; tag = ''; onlyFavorites = false; pendingOrganization.clear(); acknowledgedOrganization.clear(); }
   columnLayout.receive(state.columnLayout, state.columnLayoutAck);
   if (state.review) columnLayout.closeMenu();
   if ((state.focusAttention ?? 0) !== focusAttention) {
@@ -114,10 +118,12 @@ function render(): void {
   }
   select.value = tag;
   $('favorites-only').setAttribute('aria-pressed', String(onlyFavorites));
+  $('clear-filters').hidden = filter === 'all' && !query && !onlyFavorites && !tag;
   const rows = favoritesFirst(visible.filter(item => matchesSessionFilters(item, { status: filter, query, onlyFavorites, tag })).sort((a,b)=>positions.get(a.id)!-positions.get(b.id)!), filter);
   exportIds = rows.map(row => row.id);
   $('export').setAttribute('aria-disabled', String(!rows.length || !!state.exporting));
-  $('export').title = state.exporting ? '正在准备 CSV 导出…' : `导出当前筛选的 ${rows.length} 个会话为 CSV`;
+  const exportLabel = state.exporting ? '正在准备 CSV 导出…' : rows.length ? `导出当前筛选的 ${rows.length} 个会话为 CSV` : '没有可导出的会话；请调整或清除筛选';
+  $('export').title = exportLabel; $('export').setAttribute('aria-label', exportLabel);
   $('organization-hint').textContent = filter === 'attention' ? '待处理仍按原优先级排序' : '收藏优先 · 标签仅存于本扩展';
   $('count').hidden = !query && !onlyFavorites && !tag; $('count').textContent = `匹配 ${rows.length} 条`;
   const mode = state.liveMode ?? 'off';
@@ -141,7 +147,7 @@ function render(): void {
   if (!state.review) { table.update(rows, state.supported, state.selectedId, [...new Set([...(state.organizationPending ?? []), ...pendingOrganization])]); if (wasReview) { main.scrollTop = listScroll; main.scrollLeft = listScrollLeft; } }
   wasReview = !!state.review;
   $('empty').hidden = rows.length > 0;
-  $('empty-label').textContent = state.loading ? '正在读取会话…' : query ? '没有匹配的会话' : filter === 'attention' && mode !== 'connected' ? '实时等待状态不可用；当前没有其他已确认的待处理项。' : filter === 'review' ? '没有待审阅的新回合' : filter === 'active' && mode !== 'connected' ? '开启实时监听后可查看进行中的会话' : '暂无匹配会话';
+  $('empty-label').textContent = state.loading ? '正在读取会话…' : query || onlyFavorites || tag ? '没有符合当前筛选条件的会话；可清除筛选后重试。' : filter === 'attention' && mode !== 'connected' ? '实时等待状态不可用；当前没有其他已确认的待处理项。' : filter === 'review' ? '没有待审阅的新回合' : filter === 'active' && mode !== 'connected' ? '开启实时监听后可查看进行中的会话' : '暂无匹配会话';
 }
 window.addEventListener('message', event => { if (event.data?.type === 'state') { state = event.data.state;
   for (const id of pendingOrganization) {
